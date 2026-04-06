@@ -7,9 +7,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Menu } from "lucide-react";
+import { LayoutDashboard, Menu } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -22,6 +23,8 @@ const nav = [
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const signedIn = Boolean(session?.user);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -68,26 +71,44 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <Link
-            href="/login"
-            data-cursor-hover
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "hidden sm:inline-flex"
-            )}
-          >
-            Login
-          </Link>
-          <Link
-            href="/register"
-            data-cursor-hover
-            className={cn(
-              buttonVariants({ variant: "default", size: "sm" }),
-              "hidden sm:inline-flex"
-            )}
-          >
-            Register
-          </Link>
+          {sessionPending ? (
+            <span className="hidden h-8 w-20 animate-pulse rounded-md bg-muted sm:inline-block" />
+          ) : signedIn ? (
+            <Link
+              href="/dashboard"
+              data-cursor-hover
+              className={cn(
+                buttonVariants({ variant: "default", size: "sm" }),
+                "hidden gap-1.5 sm:inline-flex"
+              )}
+            >
+              <LayoutDashboard className="size-4" />
+              Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                data-cursor-hover
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "sm" }),
+                  "hidden sm:inline-flex"
+                )}
+              >
+                Login
+              </Link>
+              <Link
+                href="/register"
+                data-cursor-hover
+                className={cn(
+                  buttonVariants({ variant: "default", size: "sm" }),
+                  "hidden sm:inline-flex"
+                )}
+              >
+                Register
+              </Link>
+            </>
+          )}
 
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <Button
@@ -124,28 +145,45 @@ export function SiteHeader() {
                   </Link>
                 ))}
                 <div className="my-4 h-px bg-border" role="separator" />
-                <Link
-                  href="/login"
-                  data-cursor-hover
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "default" }),
-                    "w-full justify-center"
-                  )}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/register"
-                  data-cursor-hover
-                  className={cn(
-                    buttonVariants({ variant: "default", size: "default" }),
-                    "mt-2 w-full justify-center"
-                  )}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Register
-                </Link>
+                {signedIn ? (
+                  <Link
+                    href="/dashboard"
+                    data-cursor-hover
+                    className={cn(
+                      buttonVariants({ variant: "default", size: "default" }),
+                      "w-full justify-center gap-2"
+                    )}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <LayoutDashboard className="size-4" />
+                    Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      data-cursor-hover
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "default" }),
+                        "w-full justify-center"
+                      )}
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      href="/register"
+                      data-cursor-hover
+                      className={cn(
+                        buttonVariants({ variant: "default", size: "default" }),
+                        "mt-2 w-full justify-center"
+                      )}
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      Register
+                    </Link>
+                  </>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
