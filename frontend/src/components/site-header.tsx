@@ -15,9 +15,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const nav = [
-  { href: "#about", label: "About" },
-  { href: "#workflow", label: "Workflow" },
-  { href: "#clinicians", label: "For clinicians" },
+  { href: "/#workflow", label: "Pipeline" },
+  { href: "/models", label: "Models" },
+  { href: "/learn", label: "Learn" },
 ] as const;
 
 export function SiteHeader() {

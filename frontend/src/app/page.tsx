@@ -5,6 +5,7 @@ import { PretextCtaBlock } from "@/components/pretext-cta-block";
 import { ScrollFadeIn } from "@/components/scroll-fade-in";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SpeciesGrid } from "@/components/species-grid";
 import { WordHoverBlock } from "@/components/word-hover-block";
 import { WorkflowStages } from "@/components/workflow-stages";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -17,12 +18,24 @@ import {
 import { cn } from "@/lib/utils";
 import {
   ArrowDown,
+  Box,
+  Clock,
   ImageUp,
   Layers,
   Lock,
-  ShieldCheck,
+  Vote,
 } from "lucide-react";
 import Link from "next/link";
+
+const ENSEMBLE_MODELS = [
+  { name: "VGG19", tag: "Deep CNN" },
+  { name: "ResNet50", tag: "Residual" },
+  { name: "DenseNet169", tag: "Dense blocks" },
+  { name: "EfficientNetB0", tag: "Compound scaling" },
+  { name: "MobileNetV2", tag: "Lightweight" },
+  { name: "NASNetMobile", tag: "NAS-optimized" },
+  { name: "ConvNeXtBase", tag: "Modern CNN" },
+] as const;
 
 export default function Home() {
   return (
@@ -105,24 +118,24 @@ export default function Home() {
             >
               {([
                 {
-                  icon: ImageUp,
-                  title: "Slide uploads",
-                  desc: "Drag-and-drop microscopic images prepared with your lab\u2019s standard staining protocol.",
+                  icon: Vote,
+                  title: "Ensemble voting",
+                  desc: "Seven fine-tuned models vote on every slide. The majority decides — more robust than any single model.",
                 },
                 {
                   icon: Layers,
-                  title: "Staged pipeline",
-                  desc: "Fecal screening unlocks binary scoring, which gates richer multi-class predictions.",
+                  title: "3-stage pipeline",
+                  desc: "Fecal screening gates helminth detection, which gates species identification. Each stage narrows uncertainty.",
                 },
                 {
-                  icon: ShieldCheck,
-                  title: "Visual overlays",
-                  desc: "On-image markers show where models attended — full transparency, not just a score.",
+                  icon: Box,
+                  title: "Bounding-box overlays",
+                  desc: "Object detection draws boxes around each helminth species found, so you see exactly what the model sees.",
                 },
                 {
-                  icon: Lock,
-                  title: "Audit-ready",
-                  desc: "Every prediction is logged. Follow your institution\u2019s HIPAA, GDPR, or equivalent policy.",
+                  icon: Clock,
+                  title: "Prediction history",
+                  desc: "Every result is stored with the original image. Review past predictions any time you sign back in.",
                 },
               ] as const).map((c) => (
                 <Card
@@ -132,7 +145,10 @@ export default function Home() {
                 >
                   <CardHeader className="gap-3">
                     <div className="flex size-10 items-center justify-center rounded-lg border border-border bg-muted/50">
-                      <c.icon className="size-5 text-foreground/70" aria-hidden />
+                      <c.icon
+                        className="size-5 text-foreground/70"
+                        aria-hidden
+                      />
                     </div>
                     <CardTitle className="text-base">{c.title}</CardTitle>
                     <CardDescription className="leading-relaxed">
@@ -175,7 +191,116 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── For clinicians ─── */}
+        {/* ─── Ensemble models ─── */}
+        <section
+          id="models"
+          className="scroll-mt-24 border-y border-border bg-muted/20 py-24 sm:py-32 lg:py-36"
+          aria-labelledby="models-heading"
+        >
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <ScrollFadeIn>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Phase 1 ensemble
+              </p>
+              <h2
+                id="models-heading"
+                className="mt-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl"
+              >
+                7 models, 1 consensus
+              </h2>
+              <p className="mt-5 max-w-3xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+                Every uploaded slide is classified by seven independently
+                fine-tuned TensorFlow / Keras architectures. Their outputs are
+                combined through majority voting for a more reliable fecal vs
+                non-fecal decision.
+              </p>
+            </ScrollFadeIn>
+            <ScrollFadeIn
+              className="mt-12 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+              delay={0.06}
+            >
+              {ENSEMBLE_MODELS.map((m) => (
+                <Card
+                  key={m.name}
+                  data-cursor-hover
+                  className="border-border/80 shadow-none transition-shadow duration-200 hover:shadow-md"
+                >
+                  <CardHeader className="gap-1.5">
+                    <CardTitle className="text-sm font-semibold">
+                      {m.name}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {m.tag} &middot; TensorFlow / Keras
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ))}
+              <Card className="flex items-center justify-center border-dashed border-border/80 shadow-none">
+                <CardHeader className="items-center gap-1 text-center">
+                  <Vote className="size-5 text-muted-foreground" aria-hidden />
+                  <CardDescription className="text-xs font-medium">
+                    Majority vote
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </ScrollFadeIn>
+            <ScrollFadeIn className="mt-8" delay={0.1}>
+              <Link
+                href="/models"
+                data-cursor-hover
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "default" }),
+                  "gap-2"
+                )}
+              >
+                View all model details
+              </Link>
+            </ScrollFadeIn>
+          </div>
+        </section>
+
+        {/* ─── Detectable species ─── */}
+        <section
+          id="species"
+          className="scroll-mt-24 py-24 sm:py-32 lg:py-36"
+          aria-labelledby="species-heading"
+        >
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <ScrollFadeIn>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Phase 3 detection
+              </p>
+              <h2
+                id="species-heading"
+                className="mt-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl"
+              >
+                11 helminth species, localized on every slide
+              </h2>
+              <p className="mt-5 max-w-3xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+                When helminths are confirmed, the object-detection model
+                identifies and draws bounding boxes around these parasitic
+                species directly on the microscopy image.
+              </p>
+            </ScrollFadeIn>
+            <ScrollFadeIn className="mt-12" delay={0.06}>
+              <SpeciesGrid showNotes />
+            </ScrollFadeIn>
+            <ScrollFadeIn className="mt-8" delay={0.1}>
+              <Link
+                href="/learn"
+                data-cursor-hover
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "default" }),
+                  "gap-2"
+                )}
+              >
+                Learn about these species
+              </Link>
+            </ScrollFadeIn>
+          </div>
+        </section>
+
+        {/* ─── CTA ─── */}
         <section
           id="clinicians"
           className="scroll-mt-24 border-t border-border bg-muted/15 py-24 sm:py-32 lg:py-36"

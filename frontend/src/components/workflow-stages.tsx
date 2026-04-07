@@ -8,11 +8,12 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { motion, useReducedMotion } from "framer-motion";
-import { Layers, Microscope, Sparkles, type LucideIcon } from "lucide-react";
+import { Layers, Microscope, ScanSearch, type LucideIcon } from "lucide-react";
 
 type WorkflowStep = {
   step: string;
   title: string;
+  subtitle: string;
   description: string;
   icon: LucideIcon;
 };
@@ -20,24 +21,27 @@ type WorkflowStep = {
 const workflowSteps: readonly WorkflowStep[] = [
   {
     step: "1",
-    title: "Fecal vs non-fecal",
+    title: "Fecal detection (ensemble)",
+    subtitle: "7 models \u00b7 majority vote",
     description:
-      "Upload a microscopic field. The first model screens for fecal matter versus non-fecal regions so downstream steps only fire when relevant.",
+      "Seven fine-tuned TensorFlow models \u2014 VGG19, ResNet50, DenseNet169, EfficientNetB0, MobileNetV2, NASNetMobile, and ConvNeXtBase \u2014 each classify the slide independently. A majority-vote system combines their outputs: fecal or non-fecal. Non-fecal slides stop here.",
     icon: Microscope,
   },
   {
     step: "2",
-    title: "Binary classification",
+    title: "Helminth screening",
+    subtitle: "Binary classifier",
     description:
-      "When fecal signal is detected, a dedicated binary classifier refines the finding before multi-label review — keeping the path structured and auditable.",
+      "Confirmed fecal samples pass to a dedicated binary classifier that distinguishes helminths from non-helminths. Non-helminth results are reported and the pipeline stops. Helminth-positive slides advance to species identification.",
     icon: Layers,
   },
   {
     step: "3",
-    title: "Multi-class overlays",
+    title: "Species identification",
+    subtitle: "11-class object detection",
     description:
-      "Up to ten fine-grained categories surfaced with localized markers on the image, so you see where the model attended — not just a single score.",
-    icon: Sparkles,
+      "An object-detection model scans the slide for 11 parasitic helminth species \u2014 including Ascaris, Hookworm, Trichuris, and Taenia \u2014 drawing bounding boxes around each finding so clinicians see exactly where the model attended.",
+    icon: ScanSearch,
   },
 ];
 
@@ -105,6 +109,7 @@ function StepCard({
               <CardTitle className="mt-2 text-lg font-semibold leading-snug tracking-tight xl:text-xl">
                 {item.title}
               </CardTitle>
+              <p className="mt-0.5 text-xs text-muted-foreground">{item.subtitle}</p>
             </div>
             <CardDescription className="flex-1 text-[0.9375rem] leading-relaxed">
               {item.description}
@@ -175,6 +180,7 @@ function DesktopSpineCard({
               <CardTitle className="mt-2 text-xl font-semibold leading-snug tracking-tight">
                 {item.title}
               </CardTitle>
+              <p className="mt-0.5 text-xs text-muted-foreground">{item.subtitle}</p>
             </div>
             <CardDescription className="text-[0.9375rem] leading-relaxed">
               {item.description}

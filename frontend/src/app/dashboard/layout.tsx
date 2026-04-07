@@ -9,12 +9,17 @@ export default async function DashboardLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { data: session } = await auth.getSession();
-  if (!session?.user) {
+  let user: { name: string; email: string } | null = null;
+  try {
+    const { data: session } = await auth.getSession();
+    if (!session?.user) {
+      redirect("/login");
+    }
+    user = session.user;
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e) throw e;
     redirect("/login");
   }
-
-  const user = session.user;
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
