@@ -1,3 +1,24 @@
 .venv/
 .DS_Store
-*.keras
+
+*.keras# Local secrets — never commit (Neon URLs, cookies, etc.)
+.env
+.env*.local
+
+
+# Dependencies (never commit — exceeds GitHub size limits)
+node_modules/
+frontend/node_modules/
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# Frontend: do not commit markdown under frontend/
+frontend/**/*.md
+
+# Cursor IDE
+.cursor/
+**/.cursor/
+.cursorrules
+.cursorignore
