@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
@@ -72,7 +73,7 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           {sessionPending ? (
-            <span className="hidden h-8 w-20 animate-pulse rounded-md bg-muted sm:inline-block" />
+            <Skeleton className="hidden h-8 w-24 rounded-md sm:inline-block" />
           ) : signedIn ? (
             <Link
               href="/dashboard"
