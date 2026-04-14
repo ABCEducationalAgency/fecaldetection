@@ -16,7 +16,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { GitHubIcon } from "@/components/icons/github-icon";
 import {
   ArrowDown,
   Box,
@@ -75,19 +74,6 @@ export default function Home() {
             >
               Sign in
             </Link>
-            <a
-              href="https://github.com/ABCEducationalAgency/fecaldetection"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-cursor-hover
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "h-11 gap-2 px-7"
-              )}
-            >
-              <GitHubIcon className="size-4" />
-              Source code
-            </a>
             <a
               href="#about"
               data-cursor-hover

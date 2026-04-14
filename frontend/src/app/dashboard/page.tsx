@@ -44,7 +44,7 @@ export default async function DashboardPage() {
           <div className="pb-8" data-animate="fade-up" data-delay="0">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground [&_svg]:text-primary">
                   <Activity className="size-3.5" aria-hidden />
                   Clinician workspace
                 </p>
@@ -66,32 +66,32 @@ export default async function DashboardPage() {
               label="Total predictions"
               value="0"
               hint="All-time scans"
-              accent="text-blue-600 dark:text-blue-400"
-              accentBg="bg-blue-50 dark:bg-blue-950/30"
+              accent="text-chart-5 dark:text-chart-1"
+              accentBg="bg-chart-1 dark:bg-chart-5/25"
             />
             <StatCard
               icon={Microscope}
               label="Fecal detected"
               value="0"
               hint="Phase 1 positives"
-              accent="text-emerald-600 dark:text-emerald-400"
-              accentBg="bg-emerald-50 dark:bg-emerald-950/30"
+              accent="text-primary dark:text-primary-foreground"
+              accentBg="bg-primary/12 dark:bg-primary/30"
             />
             <StatCard
               icon={Layers}
               label="Helminths found"
               value="0"
               hint="Phase 2 positives"
-              accent="text-violet-600 dark:text-violet-400"
-              accentBg="bg-violet-50 dark:bg-violet-950/30"
+              accent="text-chart-4 dark:text-chart-2"
+              accentBg="bg-chart-2/40 dark:bg-chart-4/35"
             />
             <StatCard
               icon={Bug}
               label="Species identified"
               value="0"
               hint="Unique Phase 3 species"
-              accent="text-amber-600 dark:text-amber-400"
-              accentBg="bg-amber-50 dark:bg-amber-950/30"
+              accent="text-chart-3 dark:text-chart-1"
+              accentBg="bg-chart-2/25 dark:bg-chart-3/30"
             />
           </div>
 
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
               <Card className="border-border/80 shadow-sm transition-shadow duration-300 hover:shadow-md">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <ImagePlus className="size-5 text-muted-foreground" />
+                    <ImagePlus className="size-5 text-primary" />
                     Upload &amp; predict
                   </CardTitle>
                   <CardDescription>
@@ -187,28 +187,28 @@ export default async function DashboardPage() {
                       detail: "7-model ensemble vote",
                       icon: Microscope,
                       accent:
-                        "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400",
+                        "bg-chart-1 text-chart-5 dark:bg-chart-5/35 dark:text-chart-1",
                     },
                     {
                       label: "Helminth screening",
                       detail: "Binary classifier",
                       icon: Layers,
                       accent:
-                        "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-400",
+                        "bg-chart-2/45 text-chart-5 dark:bg-chart-4/40 dark:text-chart-2",
                     },
                     {
                       label: "Species identification",
                       detail: "11-class detection",
                       icon: ScanSearch,
                       accent:
-                        "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
+                        "bg-primary/15 text-primary dark:bg-primary/28 dark:text-primary-foreground",
                     },
                     {
                       label: "Review",
                       detail: "Annotated image + bounding boxes",
                       icon: ClipboardList,
                       accent:
-                        "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
+                        "bg-muted text-primary dark:bg-muted dark:text-primary-foreground",
                     },
                   ].map((step, i) => {
                     const Icon = step.icon;
