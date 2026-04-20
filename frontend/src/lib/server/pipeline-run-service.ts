@@ -785,9 +785,10 @@ export async function serviceSyncPipelineRun(
 export async function serviceListPipelineHistory(
   userId: string,
   limit: number,
+  offset = 0,
 ): Promise<{ ok: true; items: PredictionPipelineRunRow[] } | PipelineErr> {
   try {
-    const items = await listPipelineHistory(userId, limit);
+    const items = await listPipelineHistory(userId, limit, offset);
     return { ok: true, items };
   } catch (reason) {
     return { ok: false, error: dbErrorMessage(reason) };
@@ -797,7 +798,14 @@ export async function serviceListPipelineHistory(
 export async function serviceGetPipelineStats(
   userId: string,
 ): Promise<
-  | { ok: true; stats: { totalPredictions: number; helminthPositivePhase2: number } }
+  | {
+      ok: true;
+      stats: {
+        totalPredictions: number;
+        fecalDetectedStage1: number;
+        helminthPositivePhase2: number;
+      };
+    }
   | PipelineErr
 > {
   try {

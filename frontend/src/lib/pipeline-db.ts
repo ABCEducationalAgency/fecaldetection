@@ -216,6 +216,7 @@ export async function getPipelineRunForUser(
 export async function listPipelineHistory(
   userId: string,
   limit: number,
+  offset = 0,
 ): Promise<PredictionPipelineRunRow[]> {
   const sql = getSql();
   const rows = await sql`
@@ -227,12 +228,14 @@ export async function listPipelineHistory(
     WHERE user_id = ${userId}
     ORDER BY created_at DESC
     LIMIT ${limit}
+    OFFSET ${offset}
   `;
   return rows as PredictionPipelineRunRow[];
 }
 
 export async function getPipelineDashboardStats(userId: string): Promise<{
   totalPredictions: number;
+  fecalDetectedStage1: number;
   helminthPositivePhase2: number;
 }> {
   const sql = getSql();
@@ -242,6 +245,17 @@ export async function getPipelineDashboardStats(userId: string): Promise<{
     WHERE user_id = ${userId} AND status = 'finished'
   `;
   const totalPredictions = (totalRows[0] as { c: number } | undefined)?.c ?? 0;
+
+  const fecalRows = await sql`
+    SELECT COUNT(*)::int AS c
+    FROM prediction_pipeline_runs
+    WHERE user_id = ${userId}
+      AND status = 'finished'
+      AND stage1_status = 'finished'
+      AND stage1_vote_summary->>'majorityClass' = '0'
+  `;
+  const fecalDetectedStage1 =
+    (fecalRows[0] as { c: number } | undefined)?.c ?? 0;
 
   const posRows = await sql`
     SELECT COUNT(*)::int AS c
@@ -253,5 +267,5 @@ export async function getPipelineDashboardStats(userId: string): Promise<{
   const helminthPositivePhase2 =
     (posRows[0] as { c: number } | undefined)?.c ?? 0;
 
-  return { totalPredictions, helminthPositivePhase2 };
+  return { totalPredictions, fecalDetectedStage1, helminthPositivePhase2 };
 }

@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
 import { resolvePredictionUserId } from "@/lib/prediction-api-auth";
-import { serviceListPipelineHistory } from "@/lib/server/pipeline-run-service";
+import { serviceGetPipelineStats } from "@/lib/server/pipeline-run-service";
 
 export const runtime = "nodejs";
-
-const LIMIT = 50;
-const MAX_LIMIT = 100;
 
 export async function GET(request: Request) {
   try {
@@ -14,19 +11,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const url = new URL(request.url);
-    const limitParam = Number(url.searchParams.get("limit"));
-    const offsetParam = Number(url.searchParams.get("offset"));
-    const limit =
-      Number.isFinite(limitParam) && limitParam > 0
-        ? Math.min(MAX_LIMIT, Math.floor(limitParam))
-        : LIMIT;
-    const offset =
-      Number.isFinite(offsetParam) && offsetParam >= 0
-        ? Math.floor(offsetParam)
-        : 0;
-
-    const result = await serviceListPipelineHistory(userId, limit, offset);
+    const result = await serviceGetPipelineStats(userId);
     if (!result.ok) {
       const status = result.error.includes("Database is not configured")
         ? 503
@@ -34,7 +19,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: result.error }, { status });
     }
 
-    return NextResponse.json({ items: result.items });
+    return NextResponse.json({ stats: result.stats });
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : "Server error";
     if (message.includes("DATABASE_URL")) {

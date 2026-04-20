@@ -10,18 +10,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
   CheckCircle2,
   Clock3,
-  ImagePlus,
   Loader2,
   Radio,
   Upload,
 } from "lucide-react";
-import type { PredictionPipelineRunRow } from "@/lib/pipeline-db";
 
 type StepStatus = "idle" | "active" | "complete" | "skipped";
 type StageNumber = 1 | 2;
@@ -95,7 +92,6 @@ type ActivityItem = {
 };
 
 export type HelminthPredictPanelProps = {
-  initialHistory: PredictionPipelineRunRow[];
   predictionApiDelegateToken: string | null;
 };
 
@@ -171,43 +167,7 @@ function buildVoteSummaryFromResults(results: unknown[]): StageVoteSummary {
   };
 }
 
-function summarizePipelineRun(row: PredictionPipelineRunRow): string {
-  if (row.status === "failed") return row.error_message || "Failed";
-  if (row.stage2_status === "skipped") {
-    const vote = row.stage1_vote_summary as
-      | { positiveVotes?: number; negativeVotes?: number }
-      | null;
-    return `Stage 1 result: Non-fecal (${vote?.positiveVotes ?? 0} fecal votes / ${vote?.negativeVotes ?? 0} non-fecal votes). Stage 2 skipped.`;
-  }
-  if (row.stage2_vote_summary) {
-    const vote = row.stage2_vote_summary as
-      | { positiveVotes?: number; negativeVotes?: number; majorityClass?: number }
-      | null;
-    const label =
-      vote?.majorityClass === 0
-        ? "Helminths detected"
-        : vote?.majorityClass === 1
-          ? "No helminths"
-          : "Unknown";
-    return `Stage 2 result: ${label} (${vote?.positiveVotes ?? 0} helminths votes / ${vote?.negativeVotes ?? 0} non-helminths votes).`;
-  }
-  if (row.stage1_vote_summary) {
-    const vote = row.stage1_vote_summary as
-      | { majorityClass?: number; positiveVotes?: number; negativeVotes?: number }
-      | null;
-    const label =
-      vote?.majorityClass === 0
-        ? "Fecal"
-        : vote?.majorityClass === 1
-          ? "Non-fecal"
-          : "Unknown";
-    return `Stage 1 result: ${label} (${vote?.positiveVotes ?? 0} fecal votes / ${vote?.negativeVotes ?? 0} non-fecal votes).`;
-  }
-  return row.status;
-}
-
 export function HelminthPredictPanel({
-  initialHistory,
   predictionApiDelegateToken,
 }: HelminthPredictPanelProps) {
   const delegateAuthHeaders = useMemo(
@@ -218,9 +178,6 @@ export function HelminthPredictPanel({
     [predictionApiDelegateToken],
   );
 
-  const [history, setHistory] =
-    useState<PredictionPipelineRunRow[]>(initialHistory);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [liveMessage, setLiveMessage] = useState("");
@@ -231,6 +188,7 @@ export function HelminthPredictPanel({
   const [stage1Status, setStage1Status] = useState<StepStatus>("idle");
   const [stage2Status, setStage2Status] = useState<StepStatus>("idle");
   const [stage1Vote, setStage1Vote] = useState<StageVoteSummary | null>(null);
+  const [stage2Vote, setStage2Vote] = useState<StageVoteSummary | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -250,26 +208,6 @@ export function HelminthPredictPanel({
     progress.total > 0
       ? Math.min(100, Math.round((progress.done / progress.total) * 100))
       : 0;
-
-  const loadHistory = useCallback(async () => {
-    setHistoryLoading(true);
-    try {
-      const res = await fetch("/api/predictions/pipeline-run/history", {
-        credentials: "include",
-        headers: delegateAuthHeaders,
-      });
-      const data = (await res.json()) as {
-        items?: PredictionPipelineRunRow[];
-      };
-      if (res.ok && data.items) setHistory(data.items);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [delegateAuthHeaders]);
-
-  useEffect(() => {
-    setHistory(initialHistory);
-  }, [initialHistory]);
 
   const clearTimers = useCallback(() => {
     if (pingRef.current) {
@@ -298,9 +236,9 @@ export function HelminthPredictPanel({
         setStage2Status("complete");
       }
       setProgress((prev) => ({ ...prev, done: prev.total }));
-      await loadHistory();
+      window.dispatchEvent(new Event("pipeline-run-saved"));
     },
-    [loadHistory, stage2Status],
+    [stage2Status],
   );
 
   const applyWsPayload = useCallback((msg: WsPayload, stage: StageNumber) => {
@@ -367,6 +305,8 @@ export function HelminthPredictPanel({
       }
       if (stage === 1) {
         setStage1Vote(buildVoteSummaryFromResults(results));
+      } else {
+        setStage2Vote(buildVoteSummaryFromResults(results));
       }
     }
   }, []);
@@ -594,6 +534,7 @@ export function HelminthPredictPanel({
     setPreview(null);
     setActivity([]);
     setStage1Vote(null);
+    setStage2Vote(null);
     setStage1Status("active");
     setStage2Status("idle");
     setProgress({ done: 0, total: 0 });
@@ -640,6 +581,25 @@ export function HelminthPredictPanel({
     const selected = e.dataTransfer.files?.[0];
     if (selected) setFile(selected);
   };
+
+  const stage1ResultLabel =
+    stage1Vote?.majorityClass === 0
+      ? "Fecal"
+      : stage1Vote?.majorityClass === 1
+        ? "Non-fecal"
+        : stage1Status === "active"
+          ? "Running"
+          : "Waiting";
+  const stage2ResultLabel =
+    stage2Vote?.majorityClass === 0
+      ? "Helminths detected"
+      : stage2Vote?.majorityClass === 1
+        ? "No helminths"
+        : stage2Status === "skipped"
+          ? "Not run (Stage 1 was non-fecal)"
+          : stage2Status === "active"
+            ? "Running"
+            : "Waiting";
 
   return (
     <div className="space-y-6">
@@ -745,179 +705,135 @@ export function HelminthPredictPanel({
         )}
       </div>
 
-      {stage1Vote && (
-        <Card className="border-border/80">
-          <CardHeader>
-            <CardTitle className="text-base">Stage 1 majority vote</CardTitle>
-            <CardDescription>
-              Fecal votes: {stage1Vote.positiveVotes} · Non-fecal votes:{" "}
-              {stage1Vote.negativeVotes} · Result:{" "}
-              {stage1Vote.majorityClass === 0 ? "Fecal" : "Non-fecal"}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-
-      {activity.length > 0 && (
-        <Card className="border-border/80">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Clock3 className="size-4 text-muted-foreground" aria-hidden />
-              Live activity feed
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {activity.slice(0, 20).map((entry) => (
-              <div
-                key={entry.id}
-                className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm"
-              >
-                <p className="font-medium">
-                  Stage {entry.stage} · {shortModelName(entry.modelFilename)}
-                </p>
-                {entry.error ? (
-                  <p className="text-destructive">{entry.error}</p>
-                ) : (
-                  <p className="text-muted-foreground">
-                    {classLabel(entry.stage, entry.predictedClass)}
-                    {entry.confidencePct !== null
-                      ? ` · confidence ${entry.confidencePct.toFixed(1)}%`
-                      : ""}
-                  </p>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {preview && (preview.results.length > 0 || preview.errors.length > 0) && (
-        <Card className="border-border/80">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="size-4 text-emerald-600" aria-hidden />
-              Latest stage results
-            </CardTitle>
-            <CardDescription>
-              Live model outputs translated into user-friendly labels.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {(preview.results as Array<Record<string, unknown>>).map((row, i) => {
-              const fn = String(row.modelFilename ?? "");
-              const cls = row.classification as Record<string, unknown> | undefined;
-              const predictedClass =
-                typeof cls?.predicted_class === "number" ? cls.predicted_class : null;
-              const classProbabilities =
-                cls?.class_probabilities && typeof cls.class_probabilities === "object"
-                  ? (cls.class_probabilities as Record<string, number>)
-                  : undefined;
-              const confidence = toConfidencePercent({
-                predicted_class: predictedClass ?? undefined,
-                max_prob: typeof cls?.max_prob === "number" ? cls.max_prob : undefined,
-                class_probabilities: classProbabilities,
-              });
-              return (
-                <div
-                  key={`${fn}-${i}`}
-                  className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm"
-                >
-                  <p className="font-medium">{shortModelName(fn)}</p>
-                  <p className="text-muted-foreground">
-                    Result:{" "}
-                    <span className="font-medium text-foreground">
-                      {classLabel(
-                        currentStageRef.current ?? 1,
-                        predictedClass,
-                      )}
-                    </span>
-                    {" · "}
-                    Confidence:{" "}
-                    <span className="font-medium text-foreground">
-                      {confidence !== null ? `${confidence.toFixed(1)}%` : "—"}
-                    </span>
-                  </p>
-                  {classProbabilities ? (
-                    <p className="text-xs text-muted-foreground">
-                      Class probabilities: 0={String(classProbabilities["0"] ?? "—")}
-                      {" · "}1={String(classProbabilities["1"] ?? "—")}
-                    </p>
-                  ) : null}
-                </div>
-              );
-            })}
-            {(preview.errors as Array<Record<string, unknown>>).map((row, i) => (
-              <div
-                key={`err-${i}`}
-                className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-              >
-                {String(row.modelFilename ?? "Model")}: {String(row.error ?? "Error")}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="border-border/80">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ImagePlus className="size-5 text-muted-foreground" aria-hidden />
-            Prediction history
-          </CardTitle>
-          <CardDescription>
-            Complete pipeline runs with Stage 1 gate outcome and Stage 2 result.
-            Images are not stored.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={historyLoading}
-              onClick={() => void loadHistory()}
-            >
-              Refresh
-            </Button>
-          </div>
-          {historyLoading && history.length === 0 ? (
-            <div className="space-y-2">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
+      <div className="space-y-6">
+          {(stage1Vote || stage2Vote || stage1Status !== "idle" || stage2Status !== "idle") && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card className="border-border/80">
+                <CardHeader>
+                  <CardTitle className="text-base">Stage 1 result</CardTitle>
+                  <CardDescription>
+                    {stage1Vote
+                      ? `Fecal votes: ${stage1Vote.positiveVotes} · Non-fecal votes: ${stage1Vote.negativeVotes}`
+                      : "Waiting for Stage 1 output."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-lg font-semibold">{stage1ResultLabel}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-border/80">
+                <CardHeader>
+                  <CardTitle className="text-base">Stage 2 result</CardTitle>
+                  <CardDescription>
+                    {stage2Vote
+                      ? `Helminths votes: ${stage2Vote.positiveVotes} · Non-helminths votes: ${stage2Vote.negativeVotes}`
+                      : "Runs only when Stage 1 result is fecal."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-lg font-semibold">{stage2ResultLabel}</p>
+                </CardContent>
+              </Card>
             </div>
-          ) : history.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No saved runs yet. Complete a screening to see it here.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {history.map((row) => (
-                <li
-                  key={row.id}
-                  className="rounded-lg border border-border/60 bg-background/80 px-3 py-3 text-sm"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium text-foreground">
-                      {row.original_filename ?? "Untitled"}
-                    </span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      S1 {row.stage1_status} · S2 {row.stage2_status}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {new Date(row.created_at).toLocaleString()} · {row.status}
-                    {row.final_outcome ? ` · ${row.final_outcome}` : ""}
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-foreground/90">
-                    {summarizePipelineRun(row)}
-                  </p>
-                </li>
-              ))}
-            </ul>
           )}
-        </CardContent>
-      </Card>
+
+          {activity.length > 0 && (
+            <Card className="border-border/80">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Clock3 className="size-4 text-muted-foreground" aria-hidden />
+                  Live activity feed
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {activity.slice(0, 20).map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm"
+                  >
+                    <p className="font-medium">
+                      Stage {entry.stage} · {shortModelName(entry.modelFilename)}
+                    </p>
+                    {entry.error ? (
+                      <p className="text-destructive">{entry.error}</p>
+                    ) : (
+                      <p className="text-muted-foreground">
+                        {classLabel(entry.stage, entry.predictedClass)}
+                        {entry.confidencePct !== null
+                          ? ` · confidence ${entry.confidencePct.toFixed(1)}%`
+                          : ""}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {preview && (preview.results.length > 0 || preview.errors.length > 0) && (
+            <Card className="border-border/80">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CheckCircle2 className="size-4 text-emerald-600" aria-hidden />
+                  Latest stage results
+                </CardTitle>
+                <CardDescription>
+                  Live model outputs translated into user-friendly labels.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(preview.results as Array<Record<string, unknown>>).map((row, i) => {
+                  const fn = String(row.modelFilename ?? "");
+                  const cls = row.classification as Record<string, unknown> | undefined;
+                  const predictedClass =
+                    typeof cls?.predicted_class === "number" ? cls.predicted_class : null;
+                  const classProbabilities =
+                    cls?.class_probabilities && typeof cls.class_probabilities === "object"
+                      ? (cls.class_probabilities as Record<string, number>)
+                      : undefined;
+                  const confidence = toConfidencePercent({
+                    predicted_class: predictedClass ?? undefined,
+                    max_prob: typeof cls?.max_prob === "number" ? cls.max_prob : undefined,
+                    class_probabilities: classProbabilities,
+                  });
+                  return (
+                    <div
+                      key={`${fn}-${i}`}
+                      className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm"
+                    >
+                      <p className="font-medium">{shortModelName(fn)}</p>
+                      <p className="text-muted-foreground">
+                        Result:{" "}
+                        <span className="font-medium text-foreground">
+                          {classLabel(currentStageRef.current ?? 1, predictedClass)}
+                        </span>
+                        {" · "}
+                        Confidence:{" "}
+                        <span className="font-medium text-foreground">
+                          {confidence !== null ? `${confidence.toFixed(1)}%` : "—"}
+                        </span>
+                      </p>
+                      {classProbabilities ? (
+                        <p className="text-xs text-muted-foreground">
+                          Class probabilities: 0={String(classProbabilities["0"] ?? "—")}
+                          {" · "}1={String(classProbabilities["1"] ?? "—")}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {(preview.errors as Array<Record<string, unknown>>).map((row, i) => (
+                  <div
+                    key={`err-${i}`}
+                    className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                  >
+                    {String(row.modelFilename ?? "Model")}: {String(row.error ?? "Error")}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+      </div>
     </div>
   );
 }
