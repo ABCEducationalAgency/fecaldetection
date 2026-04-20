@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { PipelineStepper } from "@/components/pipeline-stepper";
 import { Button } from "@/components/ui/button";
 import {
@@ -160,7 +159,6 @@ export function HelminthPredictPanel({
   initialHistory,
   predictionApiDelegateToken,
 }: HelminthPredictPanelProps) {
-  const router = useRouter();
   const delegateAuthHeaders = useMemo(
     () =>
       predictionApiDelegateToken
@@ -250,9 +248,8 @@ export function HelminthPredictPanel({
       }
       setProgress((prev) => ({ ...prev, done: prev.total }));
       await loadHistory();
-      router.refresh();
     },
-    [loadHistory, router, stage2Status],
+    [loadHistory, stage2Status],
   );
 
   const applyWsPayload = useCallback((msg: WsPayload, stage: StageNumber) => {
