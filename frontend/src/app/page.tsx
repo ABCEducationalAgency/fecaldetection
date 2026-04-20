@@ -16,15 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import {
-  ArrowDown,
-  Box,
-  Clock,
-  ImageUp,
-  Layers,
-  Lock,
-  Vote,
-} from "lucide-react";
+import { ArrowDown, Box, Clock, Layers, Vote } from "lucide-react";
 import Link from "next/link";
 
 const ENSEMBLE_MODELS = [

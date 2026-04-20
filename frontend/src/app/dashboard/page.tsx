@@ -1,6 +1,5 @@
 import { DashboardAnimations } from "./dashboard-animations";
-import { PipelineStepper } from "@/components/pipeline-stepper";
-import { Button } from "@/components/ui/button";
+import { HelminthPredictPanel } from "@/components/dashboard/helminth-predict-panel";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
@@ -9,7 +8,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { auth } from "@/lib/auth/server";
+import { getSessionInServerAction } from "@/lib/auth/route-session";
+import { getPipelineDashboardStats, listPipelineHistory } from "@/lib/pipeline-db";
+import { createPredictionApiDelegateToken } from "@/lib/prediction-api-token";
+import { getStorableUserId } from "@/lib/session-user";
 import { cn } from "@/lib/utils";
 import {
   Activity,
@@ -19,7 +21,6 @@ import {
   Layers,
   Microscope,
   ScanSearch,
-  Upload,
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -33,8 +34,26 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const { data: session } = await auth.getSession();
+  const { data: session } = await getSessionInServerAction();
   const user = session?.user;
+  const userId = user ? getStorableUserId(user) : null;
+
+  let initialHistory: Awaited<ReturnType<typeof listPipelineHistory>> = [];
+  let stats = { totalPredictions: 0, helminthPositivePhase2: 0 };
+  let predictionApiDelegateToken: string | null = null;
+  if (userId) {
+    try {
+      initialHistory = await listPipelineHistory(userId, 20);
+      stats = await getPipelineDashboardStats(userId);
+    } catch {
+      /* Missing migration or DATABASE_URL — panel still works for upload attempt */
+    }
+    try {
+      predictionApiDelegateToken = createPredictionApiDelegateToken(userId);
+    } catch {
+      predictionApiDelegateToken = null;
+    }
+  }
 
   return (
     <main className="flex-1 bg-muted/10">
@@ -54,8 +73,9 @@ export default async function DashboardPage() {
               </div>
             </div>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Upload microscopy slides, run the 3-phase fecal screening pipeline,
-              and review model-assisted findings — all in one place.
+              Stage 1 fecal detection now gates Stage 2 helminth screening:
+              upload once, watch live progress, and review complete pipeline
+              history in your workspace.
             </p>
           </div>
 
@@ -64,32 +84,32 @@ export default async function DashboardPage() {
             <StatCard
               icon={ClipboardList}
               label="Total predictions"
-              value="0"
-              hint="All-time scans"
+              value={String(stats.totalPredictions)}
+              hint="Finished Stage 1→2 pipeline runs"
               accent="text-chart-5 dark:text-chart-1"
               accentBg="bg-chart-1 dark:bg-chart-5/25"
             />
             <StatCard
               icon={Microscope}
               label="Fecal detected"
-              value="0"
-              hint="Phase 1 positives"
+              value="Live"
+              hint="Stage 1 majority-vote gate enabled"
               accent="text-primary dark:text-primary-foreground"
               accentBg="bg-primary/12 dark:bg-primary/30"
             />
             <StatCard
               icon={Layers}
               label="Helminths found"
-              value="0"
-              hint="Phase 2 positives"
+              value={String(stats.helminthPositivePhase2)}
+              hint="Phase 2: any model predicted class 1"
               accent="text-chart-4 dark:text-chart-2"
               accentBg="bg-chart-2/40 dark:bg-chart-4/35"
             />
             <StatCard
               icon={Bug}
               label="Species identified"
-              value="0"
-              hint="Unique Phase 3 species"
+              value="—"
+              hint="Phase 3 not connected yet"
               accent="text-chart-3 dark:text-chart-1"
               accentBg="bg-chart-2/25 dark:bg-chart-3/30"
             />
@@ -106,67 +126,15 @@ export default async function DashboardPage() {
                     Upload &amp; predict
                   </CardTitle>
                   <CardDescription>
-                    Drag-and-drop microscopy tiles to start the staged pipeline.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="group flex flex-col items-center gap-4 rounded-xl border-2 border-dashed border-border bg-gradient-to-b from-muted/10 to-muted/30 px-6 py-14 text-center transition-all duration-300 hover:border-primary/40 hover:from-primary/[0.02] hover:to-primary/[0.06]">
-                    <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
-                      <Upload className="size-8" aria-hidden />
-                    </div>
-                    <div>
-                      <p className="text-base font-medium text-foreground">
-                        Drop slide images here
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        PNG, JPG, or TIFF up to 50 MB each
-                      </p>
-                    </div>
-                    <Button className="mt-2 h-10" type="button" disabled>
-                      Browse files (coming soon)
-                    </Button>
-                  </div>
-
-                  {/* Pipeline progress stepper */}
-                  <div className="rounded-xl border border-border/60 bg-gradient-to-b from-background to-muted/20 p-5">
-                    <p className="mb-4 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                      Pipeline progress
-                    </p>
-                    <PipelineStepper />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Prediction history */}
-              <Card className="border-border/80 shadow-sm transition-shadow duration-300 hover:shadow-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <ClipboardList className="size-5 text-muted-foreground" />
-                    Prediction history
-                  </CardTitle>
-                  <CardDescription>
-                    Results from past slides appear here.
+                    Two-stage pipeline with conditional Stage 2 execution, live
+                    WebSocket updates, and saved history (no images stored).
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-border bg-gradient-to-b from-muted/5 to-muted/15 px-6 py-14 text-center">
-                    <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/40">
-                      <ScanSearch
-                        className="size-7 text-muted-foreground/40"
-                        aria-hidden
-                      />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        No predictions yet
-                      </p>
-                      <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground/70">
-                        Upload a slide to get started. Each result will show the
-                        slide thumbnail, pipeline outcome, and any detected
-                        species.
-                      </p>
-                    </div>
-                  </div>
+                  <HelminthPredictPanel
+                    initialHistory={initialHistory}
+                    predictionApiDelegateToken={predictionApiDelegateToken}
+                  />
                 </CardContent>
               </Card>
             </div>
