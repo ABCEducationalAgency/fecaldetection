@@ -101,7 +101,7 @@ export default async function DashboardPage() {
                   </CardTitle>
                   <CardDescription>
                     Two-stage pipeline with conditional Stage 2 execution, live
-                    WebSocket updates, and saved history (no images stored).
+                    WebSocket updates, and saved history with secure image access.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

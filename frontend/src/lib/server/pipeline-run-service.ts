@@ -16,12 +16,18 @@ import {
   markPipelineRunFailed,
   saveStage1Result,
   saveStage2Result,
+  updatePipelineRunImageObjectKey,
   updateStage1ExternalJobId,
   updateStage2ExternalJobId,
   type PipelineRunStatus,
   type PredictionPipelineRunRow,
   type VoteSummary,
 } from "@/lib/pipeline-db";
+import {
+  buildPredictionImageObjectKey,
+  deletePredictionImage,
+  uploadPredictionImage,
+} from "@/lib/server/prediction-image-storage";
 import {
   fetchHelminthJobStatus,
   type HelminthStatusPayload,
@@ -380,6 +386,11 @@ async function startRun(
 
   const runId = crypto.randomUUID();
   const stage: StageNumber = mode === "pipeline" ? 1 : 2;
+  const imageObjectKey = buildPredictionImageObjectKey({
+    userId,
+    runId,
+    mimeType: file.type || "application/octet-stream",
+  });
   const modelFilenames =
     stage === 1 ? STAGE1_MODEL_FILENAMES : HELMINTH_MODEL_FILENAMES;
   const modelInputFeatureSize =
@@ -390,11 +401,38 @@ async function startRun(
       userId,
       runId,
       originalFilename: file.name || null,
+      imageObjectKey: null,
       stage1Status: stage === 1 ? "processing" : "skipped",
       stage2Status: stage === 1 ? "pending" : "processing",
     });
   } catch (reason) {
     return { ok: false, error: dbErrorMessage(reason) };
+  }
+
+  try {
+    await uploadPredictionImage({
+      objectKey: imageObjectKey,
+      file,
+    });
+    await updatePipelineRunImageObjectKey({
+      runId,
+      userId,
+      imageObjectKey,
+    });
+  } catch (reason) {
+    const message = `Could not store uploaded image: ${runError(reason)}`;
+    await markPipelineRunFailed({
+      runId,
+      userId,
+      stage,
+      message,
+    });
+    try {
+      await deletePredictionImage(imageObjectKey);
+    } catch {
+      // Best effort cleanup for partially written objects.
+    }
+    return { ok: false, error: message };
   }
 
   let batch: BatchStartResult;

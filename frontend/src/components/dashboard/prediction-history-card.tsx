@@ -11,6 +11,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PredictionPipelineRunRow } from "@/lib/pipeline-db";
 import { ImagePlus } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const HISTORY_PAGE_SIZE = 30;
@@ -185,21 +186,36 @@ export function PredictionHistoryCard({
                   key={row.id}
                   className="rounded-lg border border-border/60 bg-background/80 px-3 py-3 text-sm"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium text-foreground">
-                      {row.original_filename ?? "Untitled"}
-                    </span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      S1 {row.stage1_status} · S2 {row.stage2_status}
-                    </span>
+                  <div className="flex items-start gap-3">
+                    {row.image_object_key ? (
+                      <Image
+                        src={`/api/predictions/pipeline-run/${row.id}/image`}
+                        alt={row.original_filename ?? "Prediction image"}
+                        width={64}
+                        height={64}
+                        className="h-16 w-16 shrink-0 rounded-md border border-border/70 object-cover"
+                        loading="lazy"
+                        unoptimized
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">
+                          {row.original_filename ?? "Untitled"}
+                        </span>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          S1 {row.stage1_status} · S2 {row.stage2_status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {new Date(row.created_at).toLocaleString()} · {row.status}
+                        {row.final_outcome ? ` · ${row.final_outcome}` : ""}
+                      </p>
+                      <p className="mt-2 text-xs leading-relaxed text-foreground/90">
+                        {summarizePipelineRun(row)}
+                      </p>
+                    </div>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {new Date(row.created_at).toLocaleString()} · {row.status}
-                    {row.final_outcome ? ` · ${row.final_outcome}` : ""}
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-foreground/90">
-                    {summarizePipelineRun(row)}
-                  </p>
                 </li>
               ))}
             </ul>

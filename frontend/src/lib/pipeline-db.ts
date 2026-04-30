@@ -27,6 +27,7 @@ export type PredictionPipelineRunRow = {
   updated_at: string;
   status: PipelineRunStatus;
   original_filename: string | null;
+  image_object_key: string | null;
   stage1_status: StageRunStatus;
   stage2_status: StageRunStatus;
   stage1_external_job_id: string | null;
@@ -63,6 +64,7 @@ export async function insertPipelineRun(params: {
   userId: string;
   runId: string;
   originalFilename: string | null;
+  imageObjectKey?: string | null;
   stage1Status?: StageRunStatus;
   stage2Status?: StageRunStatus;
 }): Promise<void> {
@@ -71,15 +73,30 @@ export async function insertPipelineRun(params: {
   const stage2Status = params.stage2Status ?? "pending";
   await sql`
     INSERT INTO prediction_pipeline_runs (
-      id, user_id, status, original_filename, stage1_status, stage2_status
+      id, user_id, status, original_filename, image_object_key, stage1_status, stage2_status
     ) VALUES (
       ${params.runId}::uuid,
       ${params.userId},
       'processing',
       ${params.originalFilename},
+      ${params.imageObjectKey ?? null},
       ${stage1Status},
       ${stage2Status}
     )
+  `;
+}
+
+export async function updatePipelineRunImageObjectKey(params: {
+  runId: string;
+  userId: string;
+  imageObjectKey: string;
+}): Promise<void> {
+  const sql = getSql();
+  await sql`
+    UPDATE prediction_pipeline_runs
+    SET image_object_key = ${params.imageObjectKey},
+        updated_at = now()
+    WHERE id = ${params.runId}::uuid AND user_id = ${params.userId}
   `;
 }
 
@@ -203,6 +220,7 @@ export async function getPipelineRunForUser(
   const sql = getSql();
   const rows = await sql`
     SELECT id, user_id, created_at, updated_at, status, original_filename,
+           image_object_key,
            stage1_status, stage2_status, stage1_external_job_id, stage2_external_job_id,
            stage1_result_payload, stage2_result_payload, stage1_vote_summary, stage2_vote_summary,
            final_outcome, error_message
@@ -221,6 +239,7 @@ export async function listPipelineHistory(
   const sql = getSql();
   const rows = await sql`
     SELECT id, user_id, created_at, updated_at, status, original_filename,
+           image_object_key,
            stage1_status, stage2_status, stage1_external_job_id, stage2_external_job_id,
            stage1_result_payload, stage2_result_payload, stage1_vote_summary, stage2_vote_summary,
            final_outcome, error_message
