@@ -5,6 +5,6 @@ python-multipart
 uvicorn[standard]
 requests
 huggingface-hub
-ultralytics
+ultralytics==8.4.38
 opencv-python-headless
 
