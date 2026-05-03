@@ -118,18 +118,24 @@ def _annotate_image(image: Image.Image, results: List[Dict[str, object]]) -> Ima
 
     for model_index, item in enumerate(results, start=1):
         predictions = item.get("prediction", {}).get("predictions", [])
-        model_label = item.get("modelFilename", f"model_{model_index}")
 
         for prediction in predictions:
             box = prediction.get("box")
             cls_id = int(prediction.get("class_id", -1)) if prediction.get("class_id") is not None else -1
             label_text = prediction.get("class_name", str(cls_id))
+            confidence = prediction.get("confidence")
+
             if not box or len(box) != 4:
                 continue
 
             box_color, text_color = class_colors.get(cls_id, (default_box_color, default_text_color))
             x1, y1, x2, y2 = box
-            label = f"{model_label}: {label_text}"
+
+            if confidence is not None:
+                label = f"{label_text} {float(confidence):.2f}"
+            else:
+                label = str(label_text)
+
             draw.rectangle([x1, y1, x2, y2], outline=box_color, width=LINE_WIDTH)
 
             text_bbox = draw.textbbox((0, 0), label, font=font)
@@ -154,7 +160,7 @@ def _annotate_image(image: Image.Image, results: List[Dict[str, object]]) -> Ima
                 fill=box_color,
             )
             draw.text((text_x + pad, text_y + pad), label, fill=text_color, font=font)
-
+    
     return annotated
 
 
