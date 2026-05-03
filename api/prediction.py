@@ -23,7 +23,10 @@ def preprocess_image(source_image: Image.Image, size: int) -> np.ndarray:
 
 def predict_with_model_file(source_image: Image.Image, model_path: Path, size: int) -> Dict[str, object]:
     """Load a model from disk and run prediction on the provided image."""
-    loaded_model = load_model(str(model_path))
+    loaded_model = load_model(str(model_path),
+                              compile=False,
+                              safe_mode=False,
+                              )
     return predict_image(loaded_model, source_image, size)
 
 
