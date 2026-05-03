@@ -1,4 +1,5 @@
-tensorflow
+tensorflow==2.20.0
+keras==3.14.0
 numpy
 h5py>=3.10.0
 pillow
