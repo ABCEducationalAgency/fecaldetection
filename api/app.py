@@ -10,6 +10,8 @@ import logging
 import asyncio
 import os
 
+prediction_lock = asyncio.Lock()
+
 from prediction import (
     load_image_from_url,
     predict_with_model_file,
@@ -222,12 +224,13 @@ async def process_models(
 
             model_path = ensure_model_available(model_filename, MODELS_DIR)
 
-            result = await asyncio.to_thread(
-                predict_with_model_file,
-                image,
-                model_path,
-                model_input_feature_size
-            )
+            async with prediction_lock:
+                result = await asyncio.to_thread(
+                    predict_with_model_file,
+                    image.copy(),
+                    model_path,
+                    model_input_feature_size
+                )
 
             item = {
                 "modelFilename": model_filename,
