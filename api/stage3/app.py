@@ -91,8 +91,8 @@ def load_font(font_size: int):
 def _encode_image_to_base64(image: Image.Image) -> str:
     buffer = BytesIO()
     image.save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode("utf-8")
-
+    encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{encoded}"
 
 def _annotate_image(image: Image.Image, results: List[Dict[str, object]]) -> Image.Image:
     annotated = image.convert("RGB").copy()
@@ -197,6 +197,7 @@ async def predict_batch(
             "completed_models": 0,
             "results": [],
             "errors": [],
+            "annotated_image": None,
         }
 
         asyncio.create_task(
@@ -245,6 +246,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
                 "completed_models": job["completed_models"],
                 "results": job["results"],
                 "errors": job["errors"],
+                "annotated_image": job.get("annotated_image"),
             }
         )
 
@@ -372,21 +374,30 @@ async def process_models(
     jobs[job_id]["status"] = "finished"
 
     annotated_image_b64 = None
+
     try:
         annotated_image = _annotate_image(image, jobs[job_id]["results"])
         annotated_image_b64 = _encode_image_to_base64(annotated_image)
+
+        logger.info(
+        "Annotated image generated for job %s, base64 length=%s",
+        job_id,
+        len(annotated_image_b64),
+        )
     except Exception:
         logger.exception("Failed to annotate image for job %s", job_id)
+
+    jobs[job_id]["status"] = "finished"
+    jobs[job_id]["annotated_image"] = annotated_image_b64
 
     payload = {
         "type": "finished",
         "job_id": job_id,
+        "status": jobs[job_id]["status"],
         "results": jobs[job_id]["results"],
         "errors": jobs[job_id]["errors"],
+        "annotated_image": jobs[job_id]["annotated_image"],
     }
-
-    if annotated_image_b64 is not None:
-        payload["annotated_image"] = annotated_image_b64
 
     await _send_ws(job_id, payload)
 
