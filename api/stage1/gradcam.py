@@ -72,7 +72,7 @@ def _get_backbone_key_from_filename(model_filename: str) -> Optional[str]:
         return "resnet50"
     if "vgg19" in lower:
         return "vgg19"
-    if "convnext" in lower:
+    if "convnextbase" in lower or "convnext" in lower:
         return "convnext"
     if "mobilenetv2" in lower:
         return "mobilenetv2"
@@ -85,15 +85,34 @@ def _get_backbone_key_from_filename(model_filename: str) -> Optional[str]:
     return None
 
 
+def _get_backbone(model, backbone_name: str):
+    try:
+        return model.get_layer(backbone_name)
+    except ValueError:
+        for layer in model.layers:
+            if hasattr(layer, "layers"):
+                try:
+                    return layer.get_layer(backbone_name)
+                except ValueError:
+                    continue
+    return None
+
+
 def get_backbone_config(model_filename: str, model) -> Dict[str, str]:
     key = _get_backbone_key_from_filename(model_filename)
     if key and key in BACKBONE_CONFIGS:
         config = BACKBONE_CONFIGS[key]
         if _layer_exists(model, config["last_conv_name"]):
             return config
+        backbone = _get_backbone(config["backbone_name"], model)
+        if backbone is not None and _layer_exists(backbone, config["last_conv_name"]):
+            return config
 
     for config in BACKBONE_CONFIGS.values():
         if _layer_exists(model, config["last_conv_name"]):
+            return config
+        backbone = _get_backbone(config["backbone_name"], model)
+        if backbone is not None and _layer_exists(backbone, config["last_conv_name"]):
             return config
 
     raise ValueError(
@@ -103,9 +122,43 @@ def get_backbone_config(model_filename: str, model) -> Dict[str, str]:
 
 
 def build_gradcam_models(model, backbone_config: Dict[str, str]):
-    last_conv_layer = _find_layer(model, backbone_config["last_conv_name"])
-    last_conv_layer_model = tf.keras.Model(model.inputs, last_conv_layer.output)
-    classifier_model = tf.keras.Model(last_conv_layer.output, model.output)
+    backbone = _get_backbone(model, backbone_config["backbone_name"])
+    last_conv_name = backbone_config["last_conv_name"]
+
+    if backbone is not None:
+        try:
+            last_conv_layer = backbone.get_layer(last_conv_name)
+        except ValueError:
+            last_conv_layer = _find_layer(model, last_conv_name)
+    else:
+        last_conv_layer = _find_layer(model, last_conv_name)
+
+    if backbone is not None and hasattr(backbone, "input"):
+        last_conv_layer_model = tf.keras.Model(backbone.input, last_conv_layer.output)
+    else:
+        last_conv_layer_model = tf.keras.Model(model.inputs, last_conv_layer.output)
+
+    classifier_input = tf.keras.Input(shape=last_conv_layer.output.shape[1:])
+    x = classifier_input
+
+    if backbone is not None:
+        passed_target = False
+        for layer in backbone.layers:
+            if passed_target:
+                x = layer(x)
+            if layer.name == last_conv_name:
+                passed_target = True
+
+    passed_backbone = False
+    for layer in model.layers:
+        if passed_backbone:
+            x = layer(x)
+        if backbone is not None and layer is backbone:
+            passed_backbone = True
+        elif backbone is None and layer.name == backbone_config["backbone_name"]:
+            passed_backbone = True
+
+    classifier_model = tf.keras.Model(classifier_input, x)
     return last_conv_layer_model, classifier_model
 
 
