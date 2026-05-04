@@ -14,6 +14,7 @@ from prediction import (
     load_image_from_url,
     predict_with_model_file,
 )
+from gradcam import generate_gradcam_base64
 from model_store import ensure_model_available
 
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
@@ -50,6 +51,7 @@ app.add_middleware(LoggingMiddleware)
 # In-memory job state
 # -------------------------
 jobs = {}
+gradcam_connections = {}
 connections = {}
 
 
@@ -125,6 +127,7 @@ async def predict_batch(
             "total_models": len(modelFilenames),
             "completed_models": 0,
             "results": [],
+            "gradcams": [],
             "errors": [],
         }
 
@@ -188,6 +191,34 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
         connections.pop(job_id, None)
 
 
+@app.websocket("/ws/gradcam/{job_id}")
+async def websocket_gradcam_endpoint(websocket: WebSocket, job_id: str):
+    await websocket.accept()
+    gradcam_connections[job_id] = websocket
+
+    job = jobs.get(job_id)
+    if job:
+        await websocket.send_json({
+            "type": "connected",
+            "job_id": job_id,
+            "status": job["status"],
+            "total_models": job["total_models"],
+            "completed_models": job["completed_models"],
+            "gradcams": job.get("gradcams", []),
+            "errors": job["errors"],
+        })
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        logger.info("GradCAM websocket disconnected for job_id=%s", job_id)
+    except Exception:
+        logger.exception("GradCAM websocket error for job_id=%s", job_id)
+    finally:
+        gradcam_connections.pop(job_id, None)
+
+
 async def _send_ws(job_id: str, payload: dict):
     websocket = connections.get(job_id)
     if websocket is None:
@@ -198,6 +229,18 @@ async def _send_ws(job_id: str, payload: dict):
     except Exception:
         logger.exception("Failed sending websocket message for job_id=%s", job_id)
         connections.pop(job_id, None)
+
+
+async def _send_ws_gradcam(job_id: str, payload: dict):
+    websocket = gradcam_connections.get(job_id)
+    if websocket is None:
+        return
+
+    try:
+        await websocket.send_json(payload)
+    except Exception:
+        logger.exception("Failed sending gradcam websocket message for job_id=%s", job_id)
+        gradcam_connections.pop(job_id, None)
 
 
 async def process_models(
@@ -245,6 +288,48 @@ async def process_models(
                     "total": jobs[job_id]["total_models"],
                 }
             })
+
+            try:
+                gradcam_image = await asyncio.to_thread(
+                    generate_gradcam_base64,
+                    image,
+                    model_path,
+                    model_input_feature_size,
+                )
+                gradcam_item = {
+                    "modelFilename": model_filename,
+                    "gradcamImage": gradcam_image,
+                    "index": idx,
+                }
+                jobs[job_id]["gradcams"].append(gradcam_item)
+
+                await _send_ws_gradcam(job_id, {
+                    "type": "gradcam",
+                    "job_id": job_id,
+                    "data": gradcam_item,
+                    "progress": {
+                        "completed": jobs[job_id]["completed_models"],
+                        "total": jobs[job_id]["total_models"],
+                    }
+                })
+            except Exception as exc:
+                logger.exception("GradCAM failed for model %s", model_filename)
+                gradcam_error = {
+                    "modelFilename": model_filename,
+                    "error": "GradCAM generation failed",
+                    "details": str(exc),
+                    "index": idx,
+                }
+                jobs[job_id]["errors"].append(gradcam_error)
+                await _send_ws_gradcam(job_id, {
+                    "type": "gradcam_error",
+                    "job_id": job_id,
+                    "data": gradcam_error,
+                    "progress": {
+                        "completed": jobs[job_id]["completed_models"],
+                        "total": jobs[job_id]["total_models"],
+                    }
+                })
 
         except FileNotFoundError as exc:
             logger.error("Model not found: %s", exc)
