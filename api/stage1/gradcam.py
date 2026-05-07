@@ -204,7 +204,7 @@ def apply_heatmap(original_img: Image.Image, heatmap, alpha=0.35) -> Image.Image
 def _image_to_base64(image: Image.Image) -> str:
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
 def generate_gradcam_base64(source_image: Image.Image, model_path: Path, size: int) -> str:
