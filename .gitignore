@@ -4,6 +4,9 @@ __pycache__/
 *.keras
 *.pt
 
+testing/
+testModels/
+
 *.keras
 
 # Local secrets — never commit (Neon URLs, cookies, etc.)
