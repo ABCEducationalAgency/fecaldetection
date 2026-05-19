@@ -9,6 +9,7 @@ from PIL import Image
 import logging
 import asyncio
 import os
+import gc
 
 from prediction import (
     load_image_from_url,
@@ -16,6 +17,7 @@ from prediction import (
 )
 from gradcam import generate_gradcam_base64
 from model_store import ensure_model_available
+from lime_explainer import generate_lime_explanation
 
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
 
@@ -53,7 +55,9 @@ app.add_middleware(LoggingMiddleware)
 jobs = {}
 gradcam_connections = {}
 connections = {}
-
+job_images = {}
+lime_connections = {}
+lime_locks = {}
 
 def _pil_from_bytes(data: bytes) -> Image.Image:
     if not data:
@@ -122,12 +126,14 @@ async def predict_batch(
 
         job_id = str(uuid4())
 
+        job_images[job_id] = pil_img.copy()
+
         jobs[job_id] = {
             "status": "queued",
             "total_models": len(modelFilenames),
             "completed_models": 0,
             "results": [],
-            "gradcams": [],
+            # "gradcams": [],
             "errors": [],
         }
 
@@ -218,6 +224,111 @@ async def websocket_gradcam_endpoint(websocket: WebSocket, job_id: str):
     finally:
         gradcam_connections.pop(job_id, None)
 
+@app.websocket("/ws/lime/{job_id}")
+async def websocket_lime_endpoint(websocket: WebSocket, job_id: str):
+    await websocket.accept()
+    lime_connections[job_id] = websocket
+
+    if job_id not in jobs:
+        await websocket.send_json({
+            "type": "error",
+            "job_id": job_id,
+            "error": "Job not found."
+        })
+        await websocket.close()
+        return
+
+    await websocket.send_json({
+        "type": "connected",
+        "job_id": job_id,
+        "message": "LIME websocket connected."
+    })
+
+    try:
+        while True:
+            payload = await websocket.receive_json()
+
+            model_filename = payload.get("modelFilename")
+            try:
+                num_samples = int(payload.get("numSamples", 100))
+            except Exception:
+                num_samples = 100
+
+            num_samples = max(10, min(num_samples, 300))
+
+            if not model_filename:
+                await websocket.send_json({
+                    "type": "lime_error",
+                    "job_id": job_id,
+                    "error": "modelFilename is required."
+                })
+                continue
+
+            image = job_images.get(job_id)
+
+            if image is None:
+                await websocket.send_json({
+                    "type": "lime_error",
+                    "job_id": job_id,
+                    "modelFilename": model_filename,
+                    "error": "Original image for this job is no longer available."
+                })
+                continue
+
+            await websocket.send_json({
+                "type": "lime_started",
+                "job_id": job_id,
+                "modelFilename": model_filename,
+                "numSamples": num_samples,
+            })
+
+            try:
+                lock = lime_locks.setdefault(job_id, asyncio.Lock())
+
+                if lock.locked():
+                    await websocket.send_json({
+                        "type": "lime_error",
+                        "job_id": job_id,
+                        "modelFilename": model_filename,
+                        "error": "A LIME explanation is already running for this job."
+                    })
+                    continue
+
+                async with lock:
+                    lime_result = await asyncio.to_thread(
+                        generate_lime_explanation,
+                        model_filename,
+                        image.copy(),
+                        ["Negative", "Positive"],
+                        num_samples,
+                    )
+
+                    gc.collect()
+
+                await websocket.send_json({
+                    "type": "lime",
+                    "job_id": job_id,
+                    "modelFilename": model_filename,
+                    "data": lime_result,
+                })
+
+            except Exception as exc:
+                logger.exception("LIME failed for model %s", model_filename)
+
+                await websocket.send_json({
+                    "type": "lime_error",
+                    "job_id": job_id,
+                    "modelFilename": model_filename,
+                    "error": "LIME generation failed",
+                    "details": str(exc),
+                })
+
+    except WebSocketDisconnect:
+        logger.info("LIME websocket disconnected for job_id=%s", job_id)
+    except Exception:
+        logger.exception("LIME websocket error for job_id=%s", job_id)
+    finally:
+        lime_connections.pop(job_id, None)
 
 async def _send_ws(job_id: str, payload: dict):
     websocket = connections.get(job_id)
@@ -270,6 +381,8 @@ async def process_models(
                 model_input_feature_size
             )
 
+            gc.collect()
+
             item = {
                 "modelFilename": model_filename,
                 "classification": result,
@@ -296,12 +409,16 @@ async def process_models(
                     model_path,
                     model_input_feature_size,
                 )
+
+                gc.collect()
+
                 gradcam_item = {
                     "modelFilename": model_filename,
                     "gradcamImage": gradcam_image,
                     "index": idx,
                 }
-                jobs[job_id]["gradcams"].append(gradcam_item)
+
+                # jobs[job_id]["gradcams"].append(gradcam_item)
 
                 await _send_ws_gradcam(job_id, {
                     "type": "gradcam",
@@ -381,6 +498,19 @@ async def process_models(
         "errors": jobs[job_id]["errors"],
     })
 
+    asyncio.create_task(cleanup_job_later(job_id))
+
+async def cleanup_job_later(job_id: str, delay_seconds: int = 800):
+    await asyncio.sleep(delay_seconds)
+
+    jobs.pop(job_id, None)
+    job_images.pop(job_id, None)
+    connections.pop(job_id, None)
+    gradcam_connections.pop(job_id, None)
+    lime_connections.pop(job_id, None)
+    lime_locks.pop(job_id, None)
+
+    logger.info("Cleaned up job_id=%s from memory", job_id)
 
 if __name__ == "__main__":
     import uvicorn

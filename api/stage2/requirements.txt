@@ -10,6 +10,5 @@ python-multipart
 uvicorn[standard]
 requests
 huggingface-hub
-ultralytics
-opencv-python-headless
-
+lime
+matplotlib
