@@ -249,6 +249,7 @@ async def websocket_lime_endpoint(websocket: WebSocket, job_id: str):
             payload = await websocket.receive_json()
 
             model_filename = payload.get("modelFilename")
+            
             try:
                 num_samples = int(payload.get("numSamples", 100))
             except Exception:
