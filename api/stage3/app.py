@@ -14,7 +14,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from model_store import ensure_model_available
 from prediction import load_image_from_url, predict_with_model_file
-from detection_lime import generate_detection_lime_explanation
 
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
 BOX_COLOR = "yellow"
@@ -53,8 +52,7 @@ app.add_middleware(LoggingMiddleware)
 
 jobs: Dict[str, Dict[str, object]] = {}
 connections: Dict[str, WebSocket] = {}
-lime_jobs: Dict[str, Dict[str, object]] = {}
-lime_connections: Dict[str, WebSocket] = {}
+
 
 def _pil_from_bytes(data: bytes) -> Image.Image:
     if not data:
@@ -206,9 +204,6 @@ async def predict_batch(
             "results": [],
             "errors": [],
             "annotated_image": None,
-            "image": pil_img,
-            "model_input_feature_size": modelInputFeatureSize,
-            "model_filenames": modelFilenames,
         }
 
         asyncio.create_task(
@@ -271,170 +266,6 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     finally:
         connections.pop(job_id, None)
 
-@app.websocket("/ws/lime/detection/{job_id}")
-async def websocket_lime_detection(websocket: WebSocket, job_id: str):
-    await websocket.accept()
-
-    job = jobs.get(job_id)
-
-    if not job:
-        await websocket.send_json({
-            "type": "error",
-            "job_id": job_id,
-            "error": "Prediction job not found.",
-        })
-        await websocket.close()
-        return
-
-    if job.get("status") != "finished":
-        await websocket.send_json({
-            "type": "error",
-            "job_id": job_id,
-            "error": "Prediction job is not finished yet. Run LIME after prediction is finished.",
-            "status": job.get("status"),
-        })
-        await websocket.close()
-        return
-
-    image = job.get("image")
-    model_input_feature_size = job.get("model_input_feature_size")
-    results = job.get("results", [])
-
-    if image is None:
-        await websocket.send_json({
-            "type": "error",
-            "job_id": job_id,
-            "error": "Original image was not stored for this prediction job.",
-        })
-        await websocket.close()
-        return
-
-    if model_input_feature_size is None:
-        await websocket.send_json({
-            "type": "error",
-            "job_id": job_id,
-            "error": "model_input_feature_size was not stored for this prediction job.",
-        })
-        await websocket.close()
-        return
-
-    if not results:
-        await websocket.send_json({
-            "type": "error",
-            "job_id": job_id,
-            "error": "No prediction results found for this job.",
-        })
-        await websocket.close()
-        return
-
-    await websocket.send_json({
-        "type": "connected",
-        "job_id": job_id,
-        "status": "ready",
-        "message": "Connected to detection LIME websocket.",
-        "availableModels": [
-            {
-                "index": item.get("index"),
-                "modelFilename": item.get("modelFilename"),
-                "detections": item.get("prediction", {}).get("predictions", []),
-            }
-            for item in results
-        ],
-    })
-
-    try:
-        while True:
-            payload = await websocket.receive_json()
-
-            model_filename = payload.get("modelFilename")
-            detection_index = payload.get("detectionIndex")
-            target_class_id = payload.get("targetClassId")
-            num_samples = int(payload.get("numSamples", 100))
-            num_features = int(payload.get("numFeatures", 8))
-
-            if not model_filename:
-                await websocket.send_json({
-                    "type": "error",
-                    "job_id": job_id,
-                    "error": "modelFilename is required.",
-                })
-                continue
-
-            if num_samples <= 0:
-                await websocket.send_json({
-                    "type": "error",
-                    "job_id": job_id,
-                    "error": "numSamples must be positive.",
-                })
-                continue
-
-            if num_features <= 0:
-                await websocket.send_json({
-                    "type": "error",
-                    "job_id": job_id,
-                    "error": "numFeatures must be positive.",
-                })
-                continue
-
-            await websocket.send_json({
-                "type": "started",
-                "job_id": job_id,
-                "modelFilename": model_filename,
-                "message": "Detection LIME explanation started.",
-            })
-
-            try:
-                result = await asyncio.to_thread(
-                    generate_detection_lime_explanation,
-                    model_filename,
-                    image,
-                    MODELS_DIR,
-                    model_input_feature_size,
-                    detection_index,
-                    target_class_id,
-                    num_samples,
-                    num_features,
-                )
-
-                await websocket.send_json({
-                    "type": "finished",
-                    "job_id": job_id,
-                    "modelFilename": model_filename,
-                    "result": result,
-                })
-
-            except FileNotFoundError as exc:
-                await websocket.send_json({
-                    "type": "error",
-                    "job_id": job_id,
-                    "modelFilename": model_filename,
-                    "error": str(exc),
-                })
-
-            except ValueError as exc:
-                await websocket.send_json({
-                    "type": "error",
-                    "job_id": job_id,
-                    "modelFilename": model_filename,
-                    "error": str(exc),
-                })
-
-            except Exception as exc:
-                logger.exception("Detection LIME failed for job_id=%s", job_id)
-
-                await websocket.send_json({
-                    "type": "error",
-                    "job_id": job_id,
-                    "modelFilename": model_filename,
-                    "error": "Detection LIME failed",
-                    "details": str(exc),
-                })
-
-    except WebSocketDisconnect:
-        logger.info("Detection LIME websocket disconnected for job_id=%s", job_id)
-
-    except Exception:
-        logger.exception("Detection LIME websocket error for job_id=%s", job_id)
 
 async def _send_ws(job_id: str, payload: dict):
     websocket = connections.get(job_id)
