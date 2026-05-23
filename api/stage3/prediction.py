@@ -59,7 +59,7 @@ def predict_with_model_file(source_image: Image.Image, model_path: Path, size: i
     results = model.predict(
         source_image,
         imgsz=size,
-        conf=0.25,
+        conf=0.20,
         save=False,
         verbose=False,
     )

@@ -287,7 +287,7 @@ def make_gradcam_heatmap(
     img_array,
     backbone_feature_model,
     head_layers: List[tf.keras.layers.Layer],
-    explain_class: str = "positive",
+    explain_class: str = "predicted",
 ):
     """
     Generate GradCAM heatmap.
