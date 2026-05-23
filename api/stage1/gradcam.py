@@ -393,7 +393,7 @@ def generate_gradcam_base64(
     source_image: Image.Image,
     model_path: Path,
     size: int,
-    explain_class: str = "positive",
+    explain_class: str = "predicted",
 ) -> str:
     """
     Main function used by your API.
