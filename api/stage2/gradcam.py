@@ -367,7 +367,7 @@ def make_gradcam_heatmap(
     img_array,
     backbone_feature_model,
     head_layers: List[tf.keras.layers.Layer],
-    explain_class: str = "negative",
+    explain_class: str = "predicted",
 ):
     img_tensor = tf.convert_to_tensor(img_array, dtype=tf.float32)
 
@@ -487,7 +487,7 @@ def generate_gradcam_base64(
     source_image: Image.Image,
     model_path: Path,
     size: int,
-    explain_class: str = "negative",
+    explain_class: str = "predicted",
 ) -> str:
     model = load_keras_model(model_path)
 
