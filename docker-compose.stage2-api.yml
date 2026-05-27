@@ -4,7 +4,7 @@ services:
             context: api/stage2/
             dockerfile: Dockerfile
         container_name: fecal-detection-stage-2-api
-        command: uvicorn app:app --host 0.0.0.0 --port 7138 --reload
+        command: uvicorn app:app --host 0.0.0.0 --port 7138
         ports:
             - "7138:7138"
         environment:

@@ -12,13 +12,16 @@ import os
 
 from prediction import (
     load_image_from_url,
-    predict_with_model_file,
+    predict_image,
 )
 from gradcam import generate_gradcam_base64
+from model_cache import get_model
 from model_store import ensure_model_available
 from lime_explainer import generate_lime_explanation
 
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
+JOB_TTL_SECONDS = int(os.getenv("JOB_TTL_SECONDS", "300"))
+MAX_CONCURRENT_INFERENCE = int(os.getenv("MAX_CONCURRENT_INFERENCE", "1"))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,6 +60,17 @@ connections = {}
 job_images = {}
 lime_connections = {}
 lime_locks = {}
+inference_semaphore = asyncio.Semaphore(MAX_CONCURRENT_INFERENCE)
+
+
+async def _run_inference(func, *args):
+    async with inference_semaphore:
+        return await asyncio.to_thread(func, *args)
+
+
+def _predict_with_cached_model(image: Image.Image, model_path: Path, size: int):
+    model = get_model(model_path)
+    return predict_image(model, image, size, model_path.name)
 
 def _pil_from_bytes(data: bytes) -> Image.Image:
     if not data:
@@ -294,7 +308,7 @@ async def websocket_lime_endpoint(websocket: WebSocket, job_id: str):
                     continue
 
                 async with lock:
-                    lime_result = await asyncio.to_thread(
+                    lime_result = await _run_inference(
                         generate_lime_explanation,
                         model_filename,
                         image.copy(),
@@ -357,141 +371,146 @@ async def process_models(
     model_filenames: List[str],
     model_input_feature_size: int,
 ):
-    jobs[job_id]["status"] = "running"
+    try:
+        jobs[job_id]["status"] = "running"
 
-    await _send_ws(job_id, {
-        "type": "started",
-        "job_id": job_id,
-        "total_models": len(model_filenames),
-    })
+        await _send_ws(job_id, {
+            "type": "started",
+            "job_id": job_id,
+            "total_models": len(model_filenames),
+        })
 
-    for idx, model_filename in enumerate(model_filenames, start=1):
-        try:
-            logger.info("Processing model %s for job %s", model_filename, job_id)
-
-            model_path = ensure_model_available(model_filename, MODELS_DIR)
-
-            result = await asyncio.to_thread(
-                predict_with_model_file,
-                image,
-                model_path,
-                model_input_feature_size
-            )
-
-            item = {
-                "modelFilename": model_filename,
-                "classification": result,
-                "index": idx,
-            }
-
-            jobs[job_id]["results"].append(item)
-            jobs[job_id]["completed_models"] += 1
-
-            await _send_ws(job_id, {
-                "type": "prediction",
-                "job_id": job_id,
-                "data": item,
-                "progress": {
-                    "completed": jobs[job_id]["completed_models"],
-                    "total": jobs[job_id]["total_models"],
-                }
-            })
-
+        for idx, model_filename in enumerate(model_filenames, start=1):
             try:
-                gradcam_image = await asyncio.to_thread(
-                    generate_gradcam_base64,
+                logger.info("Processing model %s for job %s", model_filename, job_id)
+
+                model_path = ensure_model_available(model_filename, MODELS_DIR)
+
+                result = await _run_inference(
+                    _predict_with_cached_model,
                     image,
                     model_path,
                     model_input_feature_size,
                 )
-                gradcam_item = {
+
+                item = {
                     "modelFilename": model_filename,
-                    "gradcamImage": gradcam_image,
+                    "classification": result,
                     "index": idx,
                 }
-                jobs[job_id]["gradcams"].append(gradcam_item)
 
-                await _send_ws_gradcam(job_id, {
-                    "type": "gradcam",
+                jobs[job_id]["results"].append(item)
+                jobs[job_id]["completed_models"] += 1
+
+                await _send_ws(job_id, {
+                    "type": "prediction",
                     "job_id": job_id,
-                    "data": gradcam_item,
+                    "data": item,
                     "progress": {
                         "completed": jobs[job_id]["completed_models"],
                         "total": jobs[job_id]["total_models"],
                     }
                 })
-            except Exception as exc:
-                logger.exception("GradCAM failed for model %s", model_filename)
-                gradcam_error = {
+
+                try:
+                    gradcam_image = await _run_inference(
+                        generate_gradcam_base64,
+                        image,
+                        model_path,
+                        model_input_feature_size,
+                    )
+                    gradcam_item = {
+                        "modelFilename": model_filename,
+                        "gradcamImage": gradcam_image,
+                        "index": idx,
+                    }
+
+                    await _send_ws_gradcam(job_id, {
+                        "type": "gradcam",
+                        "job_id": job_id,
+                        "data": gradcam_item,
+                        "progress": {
+                            "completed": jobs[job_id]["completed_models"],
+                            "total": jobs[job_id]["total_models"],
+                        }
+                    })
+                except Exception as exc:
+                    logger.exception("GradCAM failed for model %s", model_filename)
+                    gradcam_error = {
+                        "modelFilename": model_filename,
+                        "error": "GradCAM generation failed",
+                        "details": str(exc),
+                        "index": idx,
+                    }
+                    jobs[job_id]["errors"].append(gradcam_error)
+                    await _send_ws_gradcam(job_id, {
+                        "type": "gradcam_error",
+                        "job_id": job_id,
+                        "data": gradcam_error,
+                        "progress": {
+                            "completed": jobs[job_id]["completed_models"],
+                            "total": jobs[job_id]["total_models"],
+                        }
+                    })
+
+            except FileNotFoundError as exc:
+                logger.error("Model not found: %s", exc)
+                error_item = {
                     "modelFilename": model_filename,
-                    "error": "GradCAM generation failed",
+                    "error": str(exc),
+                    "index": idx,
+                }
+                jobs[job_id]["errors"].append(error_item)
+                jobs[job_id]["completed_models"] += 1
+
+                await _send_ws(job_id, {
+                    "type": "model_error",
+                    "job_id": job_id,
+                    "data": error_item,
+                    "progress": {
+                        "completed": jobs[job_id]["completed_models"],
+                        "total": jobs[job_id]["total_models"],
+                    }
+                })
+
+            except Exception as exc:
+                logger.exception("Prediction failed for model %s", model_filename)
+                error_item = {
+                    "modelFilename": model_filename,
+                    "error": "Prediction failed",
                     "details": str(exc),
                     "index": idx,
                 }
-                jobs[job_id]["errors"].append(gradcam_error)
-                await _send_ws_gradcam(job_id, {
-                    "type": "gradcam_error",
+                jobs[job_id]["errors"].append(error_item)
+                jobs[job_id]["completed_models"] += 1
+
+                await _send_ws(job_id, {
+                    "type": "model_error",
                     "job_id": job_id,
-                    "data": gradcam_error,
+                    "data": error_item,
                     "progress": {
                         "completed": jobs[job_id]["completed_models"],
                         "total": jobs[job_id]["total_models"],
                     }
                 })
 
-        except FileNotFoundError as exc:
-            logger.error("Model not found: %s", exc)
-            error_item = {
-                "modelFilename": model_filename,
-                "error": str(exc),
-                "index": idx,
-            }
-            jobs[job_id]["errors"].append(error_item)
-            jobs[job_id]["completed_models"] += 1
+        jobs[job_id]["status"] = "finished"
 
-            await _send_ws(job_id, {
-                "type": "model_error",
-                "job_id": job_id,
-                "data": error_item,
-                "progress": {
-                    "completed": jobs[job_id]["completed_models"],
-                    "total": jobs[job_id]["total_models"],
-                }
-            })
+        await _send_ws(job_id, {
+            "type": "finished",
+            "job_id": job_id,
+            "results": jobs[job_id]["results"],
+            "errors": jobs[job_id]["errors"],
+        })
+    except Exception:
+        logger.exception("Batch job failed unexpectedly for job_id=%s", job_id)
+        if job_id in jobs:
+            jobs[job_id]["status"] = "failed"
+            jobs[job_id]["errors"].append({"error": "Batch job failed unexpectedly"})
+    finally:
+        asyncio.create_task(cleanup_job_later(job_id))
 
-        except Exception as exc:
-            logger.exception("Prediction failed for model %s", model_filename)
-            error_item = {
-                "modelFilename": model_filename,
-                "error": "Prediction failed",
-                "details": str(exc),
-                "index": idx,
-            }
-            jobs[job_id]["errors"].append(error_item)
-            jobs[job_id]["completed_models"] += 1
-
-            await _send_ws(job_id, {
-                "type": "model_error",
-                "job_id": job_id,
-                "data": error_item,
-                "progress": {
-                    "completed": jobs[job_id]["completed_models"],
-                    "total": jobs[job_id]["total_models"],
-                }
-            })
-
-    jobs[job_id]["status"] = "finished"
-
-    await _send_ws(job_id, {
-        "type": "finished",
-        "job_id": job_id,
-        "results": jobs[job_id]["results"],
-        "errors": jobs[job_id]["errors"],
-    })
-
-    asyncio.create_task(cleanup_job_later(job_id))
-
-async def cleanup_job_later(job_id: str, delay_seconds: int = 1800):
+async def cleanup_job_later(job_id: str, delay_seconds: int = JOB_TTL_SECONDS):
     await asyncio.sleep(delay_seconds)
 
     jobs.pop(job_id, None)
@@ -499,6 +518,7 @@ async def cleanup_job_later(job_id: str, delay_seconds: int = 1800):
     connections.pop(job_id, None)
     gradcam_connections.pop(job_id, None)
     lime_connections.pop(job_id, None)
+    lime_locks.pop(job_id, None)
 
     logger.info("Cleaned up job_id=%s from memory", job_id)
 

@@ -10,7 +10,8 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 
-from prediction import load_keras_model, preprocess_image
+from model_cache import get_model
+from prediction import preprocess_image
 
 logger = logging.getLogger(__name__)
 
@@ -489,7 +490,7 @@ def generate_gradcam_base64(
     size: int,
     explain_class: str = "predicted",
 ) -> str:
-    model = load_keras_model(model_path)
+    model = get_model(model_path)
 
     logger.info("========== GradCAM START ==========")
     logger.info("GradCAM model path: %s", model_path)

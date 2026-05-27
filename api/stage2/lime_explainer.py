@@ -13,8 +13,8 @@ from PIL import Image
 from lime import lime_image
 from skimage.segmentation import mark_boundaries
 
+from model_cache import get_model
 from model_store import ensure_model_available
-from prediction import load_keras_model
 
 
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
@@ -54,7 +54,7 @@ def generate_lime_explanation(
     num_samples: int = 100,
 ):
     model_path = ensure_model_available(model_filename, MODELS_DIR)
-    model = load_keras_model(model_path)
+    model = get_model(model_path)
 
     input_image = preprocess_image(image)
     predict_fn = build_predict_fn(model)
