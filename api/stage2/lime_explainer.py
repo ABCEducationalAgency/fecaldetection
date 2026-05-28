@@ -1,5 +1,6 @@
 import io
 import base64
+import inspect
 from pathlib import Path
 from typing import List
 import os
@@ -15,13 +16,15 @@ from skimage.segmentation import mark_boundaries
 
 from model_cache import get_model
 from model_store import ensure_model_available
+from prediction import get_preprocess_fn_from_model_name
 
 
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
 IMAGE_SIZE = (224, 224)
+LIME_RANDOM_SEED = int(os.getenv("LIME_RANDOM_SEED", "42"))
 
 
-def preprocess_image(image: Image.Image):
+def preprocess_image(image: Image.Image) -> np.ndarray:
     image = image.convert("RGB")
     image = image.resize(IMAGE_SIZE)
 
@@ -31,9 +34,19 @@ def preprocess_image(image: Image.Image):
     return arr
 
 
-def build_predict_fn(model):
+def preprocess_lime_batch(images: np.ndarray, model_filename: str) -> np.ndarray:
+    batch = images.astype(np.float32)
+
+    if float(np.max(batch)) <= 1.0:
+        batch = batch * 255.0
+
+    preprocess_fn = get_preprocess_fn_from_model_name(model_filename)
+    return preprocess_fn(batch)
+
+
+def build_predict_fn(model, model_filename: str):
     def predict_fn(images):
-        images = images.astype(np.float32) / 255.0
+        images = preprocess_lime_batch(images, model_filename)
 
         preds = model.predict(images, verbose=0)
 
@@ -57,17 +70,22 @@ def generate_lime_explanation(
     model = get_model(model_path)
 
     input_image = preprocess_image(image)
-    predict_fn = build_predict_fn(model)
+    predict_fn = build_predict_fn(model, model_filename)
 
-    explainer = lime_image.LimeImageExplainer()
+    explainer = lime_image.LimeImageExplainer(random_state=LIME_RANDOM_SEED)
 
-    explanation = explainer.explain_instance(
-        input_image,
-        predict_fn,
-        top_labels=len(class_names),
-        hide_color=0,
-        num_samples=num_samples,
-    )
+    explain_kwargs = {
+        "image": input_image,
+        "classifier_fn": predict_fn,
+        "top_labels": len(class_names),
+        "hide_color": 0,
+        "num_samples": num_samples,
+    }
+
+    if "random_seed" in inspect.signature(explainer.explain_instance).parameters:
+        explain_kwargs["random_seed"] = LIME_RANDOM_SEED
+
+    explanation = explainer.explain_instance(**explain_kwargs)
 
     preds = predict_fn(np.expand_dims(input_image, axis=0))
 

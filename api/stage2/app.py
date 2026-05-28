@@ -22,6 +22,7 @@ from lime_explainer import generate_lime_explanation
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
 JOB_TTL_SECONDS = int(os.getenv("JOB_TTL_SECONDS", "300"))
 MAX_CONCURRENT_INFERENCE = int(os.getenv("MAX_CONCURRENT_INFERENCE", "1"))
+LIME_DEFAULT_SAMPLES = int(os.getenv("LIME_DEFAULT_SAMPLES", "1000"))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -263,11 +264,11 @@ async def websocket_lime_endpoint(websocket: WebSocket, job_id: str):
 
             model_filename = payload.get("modelFilename")
             try:
-                num_samples = int(payload.get("numSamples", 100))
+                num_samples = int(payload.get("numSamples", LIME_DEFAULT_SAMPLES))
             except Exception:
-                num_samples = 100
+                num_samples = LIME_DEFAULT_SAMPLES
 
-            num_samples = max(10, min(num_samples, 300))
+            num_samples = max(50, min(num_samples, 1000))
 
             if not model_filename:
                 await websocket.send_json({
