@@ -10,4 +10,5 @@ services:
         environment:
             MODELS_DIR: /app/models
             MAX_CONCURRENT_INFERENCE: "2"
+            MAX_CACHED_MODELS: "3"
         restart: unless-stopped
