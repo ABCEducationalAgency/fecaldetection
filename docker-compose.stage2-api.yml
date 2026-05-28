@@ -9,4 +9,5 @@ services:
             - "7138:7138"
         environment:
             MODELS_DIR: /app/models
+            MAX_CONCURRENT_INFERENCE: "2"
         restart: unless-stopped

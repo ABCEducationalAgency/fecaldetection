@@ -22,7 +22,7 @@ from lime_explainer import generate_lime_explanation
 
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
 JOB_TTL_SECONDS = int(os.getenv("JOB_TTL_SECONDS", "300"))
-MAX_CONCURRENT_INFERENCE = int(os.getenv("MAX_CONCURRENT_INFERENCE", "1"))
+MAX_CONCURRENT_INFERENCE = int(os.getenv("MAX_CONCURRENT_INFERENCE", "2"))
 LIME_DEFAULT_SAMPLES = int(os.getenv("LIME_DEFAULT_SAMPLES", "1000"))
 
 logging.basicConfig(level=logging.INFO)
@@ -148,7 +148,7 @@ async def predict_batch(
             "total_models": len(modelFilenames),
             "completed_models": 0,
             "results": [],
-            # "gradcams": [],
+            "gradcams": [],
             "errors": [],
         }
 
@@ -209,7 +209,8 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     except Exception:
         logger.exception("WebSocket error for job_id=%s", job_id)
     finally:
-        connections.pop(job_id, None)
+        if connections.get(job_id) is websocket:
+            connections.pop(job_id, None)
 
 
 @app.websocket("/ws/gradcam/{job_id}")
@@ -237,7 +238,8 @@ async def websocket_gradcam_endpoint(websocket: WebSocket, job_id: str):
     except Exception:
         logger.exception("GradCAM websocket error for job_id=%s", job_id)
     finally:
-        gradcam_connections.pop(job_id, None)
+        if gradcam_connections.get(job_id) is websocket:
+            gradcam_connections.pop(job_id, None)
 
 @app.websocket("/ws/lime/{job_id}")
 async def websocket_lime_endpoint(websocket: WebSocket, job_id: str):
@@ -344,7 +346,8 @@ async def websocket_lime_endpoint(websocket: WebSocket, job_id: str):
     except Exception:
         logger.exception("LIME websocket error for job_id=%s", job_id)
     finally:
-        lime_connections.pop(job_id, None)
+        if lime_connections.get(job_id) is websocket:
+            lime_connections.pop(job_id, None)
 
 async def _send_ws(job_id: str, payload: dict):
     websocket = connections.get(job_id)
@@ -435,7 +438,7 @@ async def process_models(
                         "index": idx,
                     }
 
-                    # jobs[job_id]["gradcams"].append(gradcam_item)
+                    jobs[job_id]["gradcams"].append(gradcam_item)
 
                     await _send_ws_gradcam(job_id, {
                         "type": "gradcam",
@@ -512,6 +515,12 @@ async def process_models(
             "type": "finished",
             "job_id": job_id,
             "results": jobs[job_id]["results"],
+            "errors": jobs[job_id]["errors"],
+        })
+        await _send_ws_gradcam(job_id, {
+            "type": "gradcam_finished",
+            "job_id": job_id,
+            "gradcams": jobs[job_id].get("gradcams", []),
             "errors": jobs[job_id]["errors"],
         })
     except Exception:
