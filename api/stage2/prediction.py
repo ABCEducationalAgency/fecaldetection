@@ -4,6 +4,7 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 from typing import Dict
+import tensorflow as tf
 
 import numpy as np
 import requests
@@ -17,14 +18,43 @@ from tensorflow.keras.preprocessing import image
 logger = logging.getLogger(__name__)
 
 
-def preprocess_image(source_image: Image.Image, size: int) -> np.ndarray:
-    """Resize and normalize an image tensor for model inference."""
+def preprocess_image(source_image: Image.Image, size: int, model_name: str) -> np.ndarray:
     rgb_image = source_image.convert("RGB")
     resized_image = rgb_image.resize((size, size), Image.Resampling.LANCZOS)
-    img_array = image.img_to_array(resized_image, dtype=np.uint8)
-    img_array = img_array / 255.0
-    return np.expand_dims(img_array, axis=0)
 
+    img_array = image.img_to_array(resized_image)
+    img_array = np.expand_dims(img_array, axis=0)
+
+    preprocess_fn = get_preprocess_fn_from_model_name(model_name)
+    img_array = preprocess_fn(img_array)
+
+    return img_array
+
+def get_preprocess_fn_from_model_name(model_name: str):
+    lower = model_name.lower()
+
+    if "vgg19" in lower:
+        return tf.keras.applications.vgg19.preprocess_input
+
+    if "resnet50" in lower:
+        return tf.keras.applications.resnet50.preprocess_input
+
+    if "efficientnetb0" in lower:
+        return tf.keras.applications.efficientnet.preprocess_input
+
+    if "mobilenetv2" in lower:
+        return tf.keras.applications.mobilenet_v2.preprocess_input
+
+    if "nasnetmobile" in lower:
+        return tf.keras.applications.nasnet.preprocess_input
+
+    if "densenet169" in lower:
+        return tf.keras.applications.densenet.preprocess_input
+
+    if "convnextbase" in lower or "convnext" in lower:
+        return tf.keras.applications.convnext.preprocess_input
+
+    raise ValueError(f"Could not determine preprocessing function for model: {model_name}")
 
 def build_model() -> Model:
     inputs = Input(shape=(224, 224, 3), name="input_layer_3")
@@ -56,27 +86,31 @@ def load_keras_model(model_path: Path) -> Model:
 
 
 def predict_with_model_file(source_image: Image.Image, model_path: Path, size: int) -> Dict[str, object]:
-    """Load a model from disk and run prediction on the provided image."""
     loaded_model = load_keras_model(model_path)
-    return predict_image(loaded_model, source_image, size)
+    return predict_image(loaded_model, source_image, size, model_path.name)
 
-
-def predict_image(model, source_image: Image.Image, size: int) -> Dict[str, object]:
-    """Run inference and return class probabilities."""
-    preprocessed_image = preprocess_image(source_image, size)
+def predict_image(model, source_image: Image.Image, size: int, model_name: str) -> Dict[str, object]:
+    preprocessed_image = preprocess_image(source_image, size, model_name)
 
     logger.info("Preprocessed image shape: %s", preprocessed_image.shape)
+    logger.info(
+        "Preprocessed image stats: min=%s max=%s mean=%s",
+        float(np.min(preprocessed_image)),
+        float(np.max(preprocessed_image)),
+        float(np.mean(preprocessed_image)),
+    )
+
     assert preprocessed_image.shape == (1, size, size, 3), f"Unexpected shape: {preprocessed_image.shape}"
 
     prediction = model.predict(preprocessed_image)
     probability = float(prediction[0][0])
-    
+
     return {
         "probability": probability,
-        "predicted_class": int(round(probability)),
+        "predicted_class": int(probability >= 0.5),
         "class_probabilities": {
             0: float(round((1 - probability) * 100, 2)),
-            1: float(round(probability * 100, 2))
+            1: float(round(probability * 100, 2)),
         },
     }
 

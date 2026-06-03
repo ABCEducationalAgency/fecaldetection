@@ -91,8 +91,8 @@ def load_font(font_size: int):
 def _encode_image_to_base64(image: Image.Image) -> str:
     buffer = BytesIO()
     image.save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode("utf-8")
-
+    encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{encoded}"
 
 def _annotate_image(image: Image.Image, results: List[Dict[str, object]]) -> Image.Image:
     annotated = image.convert("RGB").copy()
@@ -118,18 +118,24 @@ def _annotate_image(image: Image.Image, results: List[Dict[str, object]]) -> Ima
 
     for model_index, item in enumerate(results, start=1):
         predictions = item.get("prediction", {}).get("predictions", [])
-        model_label = item.get("modelFilename", f"model_{model_index}")
 
         for prediction in predictions:
             box = prediction.get("box")
             cls_id = int(prediction.get("class_id", -1)) if prediction.get("class_id") is not None else -1
             label_text = prediction.get("class_name", str(cls_id))
+            confidence = prediction.get("confidence")
+
             if not box or len(box) != 4:
                 continue
 
             box_color, text_color = class_colors.get(cls_id, (default_box_color, default_text_color))
             x1, y1, x2, y2 = box
-            label = f"{model_label}: {label_text}"
+
+            if confidence is not None:
+                label = f"{label_text} {float(confidence):.2f}"
+            else:
+                label = str(label_text)
+
             draw.rectangle([x1, y1, x2, y2], outline=box_color, width=LINE_WIDTH)
 
             text_bbox = draw.textbbox((0, 0), label, font=font)
@@ -154,7 +160,7 @@ def _annotate_image(image: Image.Image, results: List[Dict[str, object]]) -> Ima
                 fill=box_color,
             )
             draw.text((text_x + pad, text_y + pad), label, fill=text_color, font=font)
-
+    
     return annotated
 
 
@@ -197,6 +203,7 @@ async def predict_batch(
             "completed_models": 0,
             "results": [],
             "errors": [],
+            "annotated_image": None,
         }
 
         asyncio.create_task(
@@ -245,6 +252,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
                 "completed_models": job["completed_models"],
                 "results": job["results"],
                 "errors": job["errors"],
+                "annotated_image": job.get("annotated_image"),
             }
         )
 
@@ -372,21 +380,30 @@ async def process_models(
     jobs[job_id]["status"] = "finished"
 
     annotated_image_b64 = None
+
     try:
         annotated_image = _annotate_image(image, jobs[job_id]["results"])
         annotated_image_b64 = _encode_image_to_base64(annotated_image)
+
+        logger.info(
+        "Annotated image generated for job %s, base64 length=%s",
+        job_id,
+        len(annotated_image_b64),
+        )
     except Exception:
         logger.exception("Failed to annotate image for job %s", job_id)
+
+    jobs[job_id]["status"] = "finished"
+    jobs[job_id]["annotated_image"] = annotated_image_b64
 
     payload = {
         "type": "finished",
         "job_id": job_id,
+        "status": jobs[job_id]["status"],
         "results": jobs[job_id]["results"],
         "errors": jobs[job_id]["errors"],
+        "annotated_image": jobs[job_id]["annotated_image"],
     }
-
-    if annotated_image_b64 is not None:
-        payload["annotated_image"] = annotated_image_b64
 
     await _send_ws(job_id, payload)
 

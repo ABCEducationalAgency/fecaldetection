@@ -15,6 +15,38 @@ OUTPUT_PATH = "gradcam_overlay.jpg"
 IMG_SIZE = (224, 224)   # change if your model expects something else
 CLASS_NAMES = None  # or your list
 
+BACKBONE_CONFIGS = {
+    "resnet50": {
+        "backbone_name": "resnet50",
+        "last_conv_name": "conv5_block3_out",
+    },
+    "vgg19": {
+        "backbone_name": "vgg19",
+        "last_conv_name": "block5_conv4",
+    },
+    "convnext": {
+        "backbone_name": "convnext",
+        "last_conv_name": "conv5_block3",
+    },
+    "mobilenetv2": {
+        "backbone_name": "mobilenetv2",
+        "last_conv_name": "out_relu",
+    },
+    "efficientnetb0": {
+        "backbone_name": "efficientnetb0",
+        "last_conv_name": "top_conv",
+    },
+    "nasnetmobile": {
+        "backbone_name": "nasnetmobile",
+        "last_conv_name": "normal_concat_12",
+    },
+    "densenet169": {
+        "backbone_name": "densenet169",
+        "last_conv_name": "conv5_block32_concat",
+    },
+}
+
+
 def load_and_preprocess_image(img_path, target_size):
     img = keras_image.load_img(img_path, target_size=target_size)
     arr = keras_image.img_to_array(img).astype("float32") / 255.0
@@ -22,38 +54,40 @@ def load_and_preprocess_image(img_path, target_size):
     return img, arr
 
 
-def build_gradcam_models(model, backbone_name="vgg19", last_conv_name="block5_conv4"):
-    backbone = model.get_layer(backbone_name)
-    last_conv_layer = backbone.get_layer(last_conv_name)
+def _find_layer(model, layer_name):
+    try:
+        return model.get_layer(layer_name)
+    except ValueError:
+        for layer in model.layers:
+            if hasattr(layer, "layers"):
+                try:
+                    return layer.get_layer(layer_name)
+                except ValueError:
+                    continue
+    raise ValueError(f"Layer '{layer_name}' not found in model or nested submodels.")
 
-    # Model 1: input image -> last conv activation
-    last_conv_layer_model = tf.keras.Model(
-        backbone.input,
-        last_conv_layer.output
-    )
 
-    # Model 2: last conv activation -> final prediction
-    classifier_input = tf.keras.Input(shape=last_conv_layer.output.shape[1:])
-    x = classifier_input
+def build_gradcam_models(model, backbone_config):
+    backbone_name = backbone_config["backbone_name"]
+    last_conv_name = backbone_config["last_conv_name"]
 
-    # Continue through the remaining backbone layers after the chosen conv layer
-    passed_target = False
-    for layer in backbone.layers:
-        if passed_target:
-            x = layer(x)
-        if layer.name == last_conv_name:
-            passed_target = True
+    try:
+        backbone = model.get_layer(backbone_name)
+    except ValueError:
+        backbone = None
 
-    # Then continue through the outer model layers after the backbone
-    passed_backbone = False
-    for layer in model.layers:
-        if passed_backbone:
-            x = layer(x)
-        if layer.name == backbone_name:
-            passed_backbone = True
+    if backbone is not None:
+        try:
+            last_conv_layer = backbone.get_layer(last_conv_name)
+        except ValueError:
+            last_conv_layer = _find_layer(model, last_conv_name)
+    else:
+        last_conv_layer = _find_layer(model, last_conv_name)
 
-    classifier_model = tf.keras.Model(classifier_input, x)
-    return last_conv_layer_model, classifier_model
+    last_conv_layer_model = tf.keras.Model(model.inputs, last_conv_layer.output)
+    classifier_model = tf.keras.Model(last_conv_layer.output, model.output)
+
+    return last_conv_layer_model, classifier_model, backbone_name, last_conv_name
 
 
 def make_gradcam_heatmap(img_array, last_conv_layer_model, classifier_model):
@@ -64,9 +98,7 @@ def make_gradcam_heatmap(img_array, last_conv_layer_model, classifier_model):
         tape.watch(last_conv_output)
 
         preds = classifier_model(last_conv_output, training=False)
-
-        # Binary sigmoid output
-        prob = preds[:, 0]   # probability of positive class
+        prob = preds[:, 0]
 
     grads = tape.gradient(prob, last_conv_output)
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
@@ -81,52 +113,42 @@ def make_gradcam_heatmap(img_array, last_conv_layer_model, classifier_model):
 
     return heatmap.numpy(), preds.numpy()
 
+
 def apply_heatmap(original_img, heatmap, alpha=0.35):
     import numpy as np
     from PIL import Image
     import matplotlib.cm as cm
 
     original = np.array(original_img).astype("float32")
-
-    # Resize heatmap to image size
-    heatmap_uint8 = np.uint8(255 * heatmap)
-
-    raw = np.uint8(255 * heatmap)
-    raw_img = Image.fromarray(raw)
-    raw_img = raw_img.resize((512, 512), Image.NEAREST)
-    raw_img.save("gradcam_raw_heatmap_large.png")
-
-    heatmap_img = Image.fromarray(heatmap_uint8).resize(
+    heatmap_img = Image.fromarray(np.uint8(255 * heatmap)).resize(
         (original.shape[1], original.shape[0])
     )
     heatmap_uint8 = np.array(heatmap_img)
 
-    # Apply colormap
     cmap = cm.get_cmap("jet")
-    colored_heatmap = cmap(heatmap_uint8 / 255.0)[:, :, :3]  # drop alpha
+    colored_heatmap = cmap(heatmap_uint8 / 255.0)[:, :, :3]
     colored_heatmap = (colored_heatmap * 255).astype("float32")
 
-    # Blend properly
     superimposed = original * (1 - alpha) + colored_heatmap * alpha
     superimposed = np.clip(superimposed, 0, 255).astype("uint8")
 
     return Image.fromarray(superimposed)
 
+
 def main():
     model = load_model(MODEL_PATH)
 
     original_img, img_array = load_and_preprocess_image(IMAGE_PATH, IMG_SIZE)
-
-    # Build once
     _ = model(tf.convert_to_tensor(img_array, dtype=tf.float32), training=False)
 
-    last_conv_layer_model, classifier_model = build_gradcam_models(
+    backbone_key = "vgg19"
+    backbone_config = BACKBONE_CONFIGS[backbone_key]
+    last_conv_layer_model, classifier_model, backbone_name, last_conv_name = build_gradcam_models(
         model,
-        backbone_name="vgg19",
-        last_conv_name="block5_conv4",
+        backbone_config,
     )
 
-    print("Using last conv layer: block5_conv4")
+    print(f"Using backbone='{backbone_name}', last_conv='{last_conv_name}'")
 
     heatmap, preds = make_gradcam_heatmap(
         img_array,
@@ -140,9 +162,9 @@ def main():
     print("Raw sigmoid probability:", prob)
     print("Predicted class:", predicted_class)
     print("Confidence:", prob if predicted_class == 1 else 1 - prob)
-    
+
     if CLASS_NAMES:
-        print("Predicted class:", CLASS_NAMES[pred_index])
+        print("Predicted class:", CLASS_NAMES[predicted_class])
 
     overlay = apply_heatmap(original_img, heatmap, alpha=0.4)
     overlay.save(OUTPUT_PATH)

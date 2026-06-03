@@ -1,7 +1,12 @@
 .venv/
+__pycache__/
 .DS_Store
 *.keras
 *.pt
+
+testing/
+testModels/
+failedTesting/
 
 *.keras
 
