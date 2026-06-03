@@ -21,7 +21,7 @@ function stage2StartErrorStatus(error: string): number {
     error.includes("already finished") ||
     error.includes("was skipped") ||
     error.includes("is not complete yet") ||
-    error.includes("cannot start because Stage 1 is non-fecal")
+    error.includes("cannot start because Stage 1 is non fecal")
   ) {
     return 409;
   }

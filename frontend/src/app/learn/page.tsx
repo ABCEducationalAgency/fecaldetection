@@ -29,32 +29,32 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Learn",
   description:
-    "Learn how fecal microscopy works, the three-phase prediction pipeline, ensemble voting, and the 11 helminth species we detect.",
+    "Learn how fecal microscopy works, the three phase prediction pipeline, ensemble voting, and the 11 helminth species we detect.",
 };
 
 const PIPELINE_STEPS = [
   {
     phase: "Phase 1",
-    title: "Fecal detection (ensemble)",
+    title: "Fecal Classification",
     icon: Microscope,
     description:
-      "Seven independently fine-tuned TensorFlow models \u2014 VGG19, ResNet50, DenseNet169, EfficientNetB0, MobileNetV2, NASNetMobile, and ConvNeXtBase \u2014 each analyze the uploaded slide. Their binary outputs (fecal vs non-fecal) are combined through majority voting. If four or more models agree the slide contains fecal matter, it advances. Otherwise the pipeline reports non-fecal and stops.",
+      "Seven independently fine tuned TensorFlow models (VGG19, ResNet50, DenseNet169, EfficientNetB0, MobileNetV2, NASNetMobile, and ConvNeXtBase) each analyze the uploaded slide. Their binary outputs (fecal vs non fecal) are combined through majority voting. If four or more models agree the slide contains fecal matter, it advances. Otherwise the pipeline reports non fecal and stops.",
     accent: "bg-blue-600 dark:bg-blue-500",
   },
   {
     phase: "Phase 2",
-    title: "Helminth screening",
+    title: "Helminth Screening",
     icon: Layers,
     description:
-      "A dedicated binary classifier examines the confirmed fecal sample to determine whether parasitic helminths are present. If no helminths are detected, the result is recorded and the pipeline stops. Helminth-positive slides move to species-level identification.",
+      "A dedicated binary classifier examines the confirmed fecal sample to determine whether parasitic helminth is present. If no helminth is detected, the result is recorded and the pipeline stops. Helminth positive slides move to species level identification.",
     accent: "bg-violet-600 dark:bg-violet-500",
   },
   {
     phase: "Phase 3",
-    title: "Species identification",
+    title: "Helminth Species Identification",
     icon: ScanSearch,
     description:
-      "An object-detection model scans the slide for 11 known parasitic helminth species. For each species found, a bounding box is drawn directly on the microscopy image along with a confidence score, so clinicians can see exactly where the model attended.",
+      "An object detection model scans the slide for 11 known parasitic helminth species. For each species found, a bounding box is drawn directly on the microscopy image along with a confidence score, so clinicians can see exactly where the model attended.",
     accent: "bg-amber-600 dark:bg-amber-500",
   },
 ] as const;
@@ -66,7 +66,7 @@ export default function LearnPage() {
       <SiteHeader />
 
       <main className="flex-1">
-        {/* ─── Hero ─── */}
+        {/* Hero */}
         <section className="mx-auto max-w-4xl px-4 pt-20 pb-16 sm:px-6 sm:pt-28 sm:pb-20 lg:px-8">
           <ScrollFadeIn>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -74,7 +74,7 @@ export default function LearnPage() {
             </p>
           </ScrollFadeIn>
           <div className="mt-3">
-            <PretextPageHeadline text="How Fecal Classification works" />
+            <PretextPageHeadline text="How Helminth Detection works" />
           </div>
           <ScrollFadeIn className="mt-6" delay={0.2}>
             <WordHoverBlock
@@ -84,7 +84,7 @@ export default function LearnPage() {
           </ScrollFadeIn>
         </section>
 
-        {/* ─── At a glance counters ─── */}
+        {/* At a glance counters */}
         <section className="border-y border-border bg-muted/20 py-14 sm:py-16">
           <div className="mx-auto grid max-w-4xl grid-cols-3 gap-6 px-4 text-center sm:px-6 lg:px-8">
             {[
@@ -109,7 +109,7 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ─── What is fecal microscopy ─── */}
+        {/* What is fecal microscopy */}
         <section className="py-20 sm:py-24">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
@@ -133,13 +133,13 @@ export default function LearnPage() {
                       in which stool samples are examined under a microscope to
                       detect parasitic organisms, their eggs (ova), or larvae.
                       It remains a cornerstone of parasitology diagnostics
-                      worldwide, especially in resource-limited settings.
+                      worldwide, especially in resource limited settings.
                     </p>
                     <p>
                       Experienced microscopists can identify helminth eggs by
                       their characteristic size, shape, and internal structures.
-                      However, manual screening is time-consuming, subjective,
-                      and dependent on the operator&apos;s expertise. AI-assisted
+                      However, manual screening is time consuming, subjective,
+                      and dependent on the operator&apos;s expertise. AI assisted
                       classification offers a way to standardize and accelerate
                       this process without replacing human judgment.
                     </p>
@@ -150,7 +150,7 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ─── Three-phase pipeline ─── */}
+        {/* Three phase pipeline */}
         <section className="border-y border-border bg-muted/20 py-20 sm:py-24">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
@@ -213,7 +213,7 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ─── Ensemble voting explained ─── */}
+        {/* Ensemble voting explained */}
         <section className="py-20 sm:py-24">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
@@ -232,7 +232,7 @@ export default function LearnPage() {
                     <p>
                       Instead of relying on one model, Phase 1 runs the same
                       image through seven distinct architectures. Each model was
-                      fine-tuned on the same fecal-detection dataset but learns
+                      fine tuned on the same fecal detection dataset but learns
                       different features due to its unique network design.
                     </p>
                     <p>
@@ -265,7 +265,7 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ─── Detectable species ─── */}
+        {/* Detectable species */}
         <section className="border-y border-border bg-muted/20 py-20 sm:py-24">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
@@ -279,7 +279,7 @@ export default function LearnPage() {
                 11 detectable helminth species
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                When helminths are confirmed in Phase 2, the object-detection
+                When helminth is confirmed in Phase 2, the object detection
                 model localizes and labels eggs or organisms from these species.
               </p>
             </ScrollFadeIn>
@@ -289,7 +289,7 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ─── CTA ─── */}
+        {/* CTA */}
         <section className="py-16 sm:py-20">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
             <ScrollFadeIn>

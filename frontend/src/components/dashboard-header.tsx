@@ -25,7 +25,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             className="flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
           >
             <Microscope className="size-5 shrink-0 text-primary" aria-hidden />
-            <span className="truncate">Fecal Classification</span>
+            <span className="truncate">Helminth Detection</span>
           </Link>
           <span
             className="hidden shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:inline"
@@ -41,9 +41,9 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
         >
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-sm text-foreground transition-opacity hover:opacity-80 [&_svg]:text-primary"
+            className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-md px-2 text-sm text-foreground transition-opacity hover:opacity-80 sm:min-w-0 sm:justify-start [&_svg]:text-primary"
           >
-            <Home className="size-3.5" aria-hidden />
+            <Home className="size-3.5 shrink-0" aria-hidden />
             <span className="hidden sm:inline">Home</span>
           </Link>
           <span className="h-4 w-px bg-border" aria-hidden />

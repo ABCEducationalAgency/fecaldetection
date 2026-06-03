@@ -11,10 +11,17 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Sign in",
   description:
-    "Sign in to Fecal Classification to access your clinician dashboard.",
+    "Sign in to Helminth Detection to access your clinician dashboard.",
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reset?: string }>;
+}) {
+  const q = await searchParams;
+  const resetSuccess = q.reset === "success";
+
   try {
     const { data: session } = await auth.getSession();
     if (session?.user) {
@@ -32,7 +39,7 @@ export default async function LoginPage() {
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -top-1/4 left-1/2 size-[600px] -translate-x-1/2 rounded-full bg-primary/[0.03] blur-3xl" />
         </div>
-        <LoginForm />
+        <LoginForm resetSuccess={resetSuccess} />
       </main>
       <SiteFooter />
     </div>

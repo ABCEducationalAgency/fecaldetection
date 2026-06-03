@@ -41,3 +41,9 @@ AGENTS.md
 .cursorrules
 .cursorignore
 *.cursor*
+scripts
+scripts/*
+
+# Graphify knowledge graph (local-only artifact; re-generated via `graphify update .`)
+graphify-out/
+**/graphify-out/

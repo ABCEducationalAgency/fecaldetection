@@ -52,7 +52,7 @@ export function SiteHeader() {
           data-cursor-hover
           className="text-sm font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
         >
-          Fecal Classification
+          Helminth Detection
         </Link>
 
         <nav

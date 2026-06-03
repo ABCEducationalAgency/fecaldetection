@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
@@ -81,6 +82,78 @@ export function buildPredictionImageObjectKey(params: {
   return `users/${userSegment}/runs/${runSegment}/original.${ext}`;
 }
 
+export function buildStage3AnnotatedObjectKey(params: {
+  userId: string;
+  runId: string;
+}): string {
+  const userSegment = sanitizePathSegment(params.userId);
+  const runSegment = sanitizePathSegment(params.runId);
+  return `users/${userSegment}/runs/${runSegment}/stage3-annotated.png`;
+}
+
+export type ExplanationKind = "gradcam" | "lime";
+export type ExplanationStage = 1 | 2 | 3;
+
+/**
+ * GradCAM keys are deterministic per (run, stage, model) so re-uploads
+ * overwrite. LIME keys include a timestamp + sample count so each run gets a
+ * distinct object.
+ */
+export function buildExplanationObjectKey(params: {
+  userId: string;
+  runId: string;
+  stage: ExplanationStage;
+  kind: ExplanationKind;
+  modelFilename: string;
+  /** Required for LIME, ignored for GradCAM. */
+  numSamples?: number;
+  /** Required for LIME, ignored for GradCAM. */
+  createdAtMs?: number;
+}): string {
+  const userSegment = sanitizePathSegment(params.userId);
+  const runSegment = sanitizePathSegment(params.runId);
+  const modelSlug = sanitizePathSegment(
+    params.modelFilename.replace(/\.(keras|pt)$/i, ""),
+  );
+  const prefix = `users/${userSegment}/runs/${runSegment}/explanations/stage${params.stage}`;
+  if (params.kind === "gradcam") {
+    return `${prefix}/gradcam/${modelSlug}.png`;
+  }
+  const ts = Math.floor((params.createdAtMs ?? Date.now()) / 1000);
+  const samples = Math.max(0, Math.floor(params.numSamples ?? 0));
+  return `${prefix}/lime/${modelSlug}-${ts}-${samples}.png`;
+}
+
+export async function uploadExplanationArtifact(params: {
+  objectKey: string;
+  body: Buffer;
+  contentType?: string;
+}): Promise<void> {
+  const client = getR2Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: params.objectKey,
+      Body: params.body,
+      ContentType: params.contentType ?? "image/png",
+      ContentLength: params.body.byteLength,
+    }),
+  );
+}
+
+export async function streamWebBodyToBuffer(
+  stream: ReadableStream<Uint8Array>,
+): Promise<Buffer> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c)));
+}
+
 export async function uploadPredictionImage(params: {
   objectKey: string;
   file: File;
@@ -95,6 +168,42 @@ export async function uploadPredictionImage(params: {
       Body: body,
       ContentType: contentType,
       ContentLength: body.byteLength,
+    }),
+  );
+}
+
+export async function uploadPredictionImageBuffer(params: {
+  objectKey: string;
+  body: Buffer;
+  contentType: string;
+}): Promise<void> {
+  const client = getR2Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: params.objectKey,
+      Body: params.body,
+      ContentType: params.contentType,
+      ContentLength: params.body.byteLength,
+    }),
+  );
+}
+
+export async function copyPredictionImage(params: {
+  sourceKey: string;
+  destKey: string;
+}): Promise<void> {
+  const client = getR2Client();
+  const bucket = R2_BUCKET as string;
+  const encodedSource = `${bucket}/${params.sourceKey
+    .split("/")
+    .map((s) => encodeURIComponent(s))
+    .join("/")}`;
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: bucket,
+      CopySource: encodedSource,
+      Key: params.destKey,
     }),
   );
 }

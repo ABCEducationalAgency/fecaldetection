@@ -62,7 +62,7 @@ export function AnimatedVotingFlow({ className }: { className?: string }) {
               </span>
               <span className="text-xs font-semibold text-foreground">{name}</span>
               <span className="text-[10px] text-muted-foreground">
-                {i < 5 ? "Fecal" : "Non-fecal"}
+                {i < 5 ? "Fecal" : "Non fecal"}
               </span>
             </motion.div>
           </motion.div>

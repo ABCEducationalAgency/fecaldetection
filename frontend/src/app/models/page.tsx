@@ -29,7 +29,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Models",
   description:
-    "Technical details on the 7 Phase-1 ensemble models, the Phase-2 helminth classifier, the Phase-3 object-detection model, and how ensemble voting works.",
+    "Technical details on the 7 Phase 1 ensemble models, the Phase 2 helminth classifier, the Phase 3 object detection model, and how ensemble voting works.",
 };
 
 const PHASE1_MODELS = [
@@ -37,37 +37,37 @@ const PHASE1_MODELS = [
     name: "VGG19",
     arch: "Deep CNN",
     detail:
-      "19 weight layers, well-studied baseline for transfer learning with strong feature extraction.",
+      "19 weight layers, well studied baseline for transfer learning with strong feature extraction.",
   },
   {
     name: "ResNet50",
     arch: "Residual Network",
     detail:
-      "50-layer residual network with skip connections that prevent vanishing gradients.",
+      "50 layer residual network with skip connections that prevent vanishing gradients.",
   },
   {
     name: "DenseNet169",
     arch: "Dense Blocks",
     detail:
-      "169-layer network where every layer is connected to every other, maximizing feature reuse.",
+      "169 layer network where every layer is connected to every other, maximizing feature reuse.",
   },
   {
     name: "EfficientNetB0",
     arch: "Compound Scaling",
     detail:
-      "Balanced depth, width, and resolution scaling for best accuracy-per-FLOP.",
+      "Balanced depth, width, and resolution scaling for best accuracy per FLOP.",
   },
   {
     name: "MobileNetV2",
     arch: "Lightweight CNN",
     detail:
-      "Inverted residuals and linear bottlenecks \u2014 optimized for mobile and edge deployment.",
+      "Inverted residuals and linear bottlenecks, optimized for mobile and edge deployment.",
   },
   {
     name: "NASNetMobile",
-    arch: "NAS-optimized",
+    arch: "NAS optimized",
     detail:
-      "Architecture discovered via neural architecture search, tuned for mobile-scale compute.",
+      "Architecture discovered via neural architecture search, tuned for mobile scale compute.",
   },
   {
     name: "ConvNeXtBase",
@@ -84,7 +84,7 @@ export default function ModelsPage() {
       <SiteHeader />
 
       <main className="flex-1">
-        {/* ─── Hero ─── */}
+        {/* Hero */}
         <section className="mx-auto max-w-5xl px-4 pt-20 pb-16 sm:px-6 sm:pt-28 sm:pb-20 lg:px-8">
           <ScrollFadeIn>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -96,13 +96,13 @@ export default function ModelsPage() {
           </div>
           <ScrollFadeIn className="mt-6" delay={0.2}>
             <WordHoverBlock
-              text="Explore the models behind each phase of the pipeline — from the 7-model ensemble to the 11-class object detector."
+              text="Explore the models behind each phase of the pipeline, from the 7 model ensemble to the 11 class object detector."
               className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg"
             />
           </ScrollFadeIn>
         </section>
 
-        {/* ─── At a glance counters ─── */}
+        {/* At a glance counters */}
         <section className="border-y border-border bg-muted/20 py-14 sm:py-16">
           <div className="mx-auto grid max-w-5xl grid-cols-3 gap-6 px-4 text-center sm:px-6 lg:px-8">
             {[
@@ -124,7 +124,7 @@ export default function ModelsPage() {
           </div>
         </section>
 
-        {/* ─── Phase 1 models ─── */}
+        {/* Phase 1 models */}
         <section className="py-20 sm:py-24">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
@@ -136,14 +136,14 @@ export default function ModelsPage() {
                   className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl"
                   data-cursor-hover
                 >
-                  Phase 1 — Fecal detection ensemble
+                  Phase 1: Fecal detection ensemble
                 </h2>
               </div>
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                Seven TensorFlow / Keras architectures, each fine-tuned
-                independently on the same fecal-detection dataset. Their outputs
+                Seven TensorFlow / Keras architectures, each fine tuned
+                independently on the same fecal detection dataset. Their outputs
                 are combined through majority voting to produce a single fecal vs
-                non-fecal decision.
+                non fecal decision.
               </p>
             </ScrollFadeIn>
             <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -188,7 +188,7 @@ export default function ModelsPage() {
           </div>
         </section>
 
-        {/* ─── Phase 2 ─── */}
+        {/* Phase 2 */}
         <section className="border-y border-border bg-muted/20 py-20 sm:py-24">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
@@ -200,7 +200,7 @@ export default function ModelsPage() {
                   className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl"
                   data-cursor-hover
                 >
-                  Phase 2 — Helminth screening
+                  Phase 2: Helminth screening
                 </h2>
               </div>
             </ScrollFadeIn>
@@ -219,13 +219,13 @@ export default function ModelsPage() {
                     </div>
                     <div>
                       <CardTitle className="text-base">
-                        Binary classifier — Helminths vs Non-Helminths
+                        Binary classifier: Helminth vs Non Helminth
                       </CardTitle>
                       <CardDescription className="mt-1.5 text-sm leading-relaxed">
                         A single dedicated model receives confirmed fecal slides
                         and determines whether parasitic helminth eggs or
                         organisms are present. This binary gate prevents the
-                        heavier object-detection model from running on clean
+                        heavier object detection model from running on clean
                         samples, improving both speed and specificity.
                       </CardDescription>
                     </div>
@@ -236,7 +236,7 @@ export default function ModelsPage() {
           </div>
         </section>
 
-        {/* ─── Phase 3 ─── */}
+        {/* Phase 3 */}
         <section className="py-20 sm:py-24">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
@@ -248,7 +248,7 @@ export default function ModelsPage() {
                   className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl"
                   data-cursor-hover
                 >
-                  Phase 3 — Species identification
+                  Phase 3: Species identification
                 </h2>
               </div>
             </ScrollFadeIn>
@@ -267,11 +267,11 @@ export default function ModelsPage() {
                     </div>
                     <div>
                       <CardTitle className="text-base">
-                        11-class object detection with bounding boxes
+                        11 class object detection with bounding boxes
                       </CardTitle>
                       <CardDescription className="mt-1.5 text-sm leading-relaxed">
-                        Helminth-positive slides are scanned by an
-                        object-detection model trained to localize and classify
+                        Helminth positive slides are scanned by an
+                        object detection model trained to localize and classify
                         eggs or organisms from 11 parasitic species. Each
                         detection includes a bounding box drawn directly on the
                         microscopy image, along with a species label and
@@ -301,7 +301,7 @@ export default function ModelsPage() {
           </div>
         </section>
 
-        {/* ─── Ensemble voting visualization ─── */}
+        {/* Ensemble voting visualization */}
         <section className="border-y border-border bg-muted/20 py-20 sm:py-24">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
@@ -316,7 +316,7 @@ export default function ModelsPage() {
                   How ensemble voting works
                 </h2>
                 <p className="mt-3 mx-auto max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                  Each Phase-1 model independently votes. A simple majority
+                  Each Phase 1 model independently votes. A simple majority
                   (&ge;4 of 7) determines the outcome.
                 </p>
               </div>
@@ -327,7 +327,7 @@ export default function ModelsPage() {
           </div>
         </section>
 
-        {/* ─── CTA ─── */}
+        {/* CTA */}
         <section className="py-16 sm:py-20">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
             <ScrollFadeIn>

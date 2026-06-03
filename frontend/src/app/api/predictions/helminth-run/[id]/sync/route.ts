@@ -38,7 +38,7 @@ export async function GET(request: Request, context: RouteParams) {
         {
           error:
             result.gateDecision === "non_fecal"
-              ? "Stage 2 was skipped because Stage 1 is non-fecal."
+              ? "Stage 2 was skipped because Stage 1 is non fecal."
               : "Stage 2 has not started yet.",
           runStatus: result.runStatus,
           gateDecision: result.gateDecision,

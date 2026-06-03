@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { AppToaster } from "@/components/app-toaster";
 import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
@@ -22,15 +23,15 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Fecal Classification — Clinical microscopy assistant",
-    template: "%s · Fecal Classification",
+    default: "Helminth Detection: Clinical microscopy assistant",
+    template: "%s · Helminth Detection",
   },
   description:
-    "Upload microscopic slides, run staged fecal detection, binary classification, and multi-class overlays — built for clinical workflows.",
+    "Upload microscopic slides, run staged fecal detection, binary classification, and multi class overlays, built for clinical workflows.",
   openGraph: {
-    title: "Fecal Classification",
+    title: "Helminth Detection",
     description:
-      "AI-assisted microscopy: fecal screening, binary review, and localized multi-class findings for licensed clinicians.",
+      "AI assisted microscopy: fecal screening, binary review, and localized multi class findings for licensed clinicians.",
   },
 };
 
@@ -45,12 +46,14 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
       style={{ backgroundColor: CANVAS_CREAM }}
+      suppressHydrationWarning
     >
       <body
         className="min-h-full flex flex-col font-sans"
         style={{ backgroundColor: CANVAS_CREAM }}
       >
         {children}
+        <AppToaster />
       </body>
     </html>
   );

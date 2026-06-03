@@ -25,7 +25,7 @@ const ENSEMBLE_MODELS = [
   { name: "DenseNet169", tag: "Dense blocks" },
   { name: "EfficientNetB0", tag: "Compound scaling" },
   { name: "MobileNetV2", tag: "Lightweight" },
-  { name: "NASNetMobile", tag: "NAS-optimized" },
+  { name: "NASNetMobile", tag: "NAS optimized" },
   { name: "ConvNeXtBase", tag: "Modern CNN" },
 ] as const;
 
@@ -36,7 +36,7 @@ export default function Home() {
       <SiteHeader />
 
       <main className="flex-1">
-        {/* ─── Hero ─── */}
+        {/* Hero */}
         <section
           className="relative mx-auto max-w-6xl px-4 pt-20 pb-28 sm:px-6 sm:pt-28 sm:pb-36 lg:px-8 lg:pt-32 lg:pb-44"
           aria-labelledby="hero-heading"
@@ -80,7 +80,7 @@ export default function Home() {
           </ScrollFadeIn>
         </section>
 
-        {/* ─── About ─── */}
+        {/* About */}
         <section
           id="about"
           className="scroll-mt-24 border-y border-border bg-muted/20 py-24 sm:py-32 lg:py-36"
@@ -89,7 +89,7 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
             <ScrollFadeIn>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Why Fecal Classification
+                Why Helminth Detection
               </p>
               <h2
                 id="about-heading"
@@ -98,8 +98,8 @@ export default function Home() {
                 Built for clinical lab workflows
               </h2>
               <p className="mt-5 max-w-3xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Designed for trained providers and laboratory staff — not for
-                public self-diagnosis. Models provide triage-level signals while
+                Designed for trained providers and laboratory staff, not for
+                public self diagnosis. Models provide triage level signals while
                 interpretation, documentation, and treatment decisions remain
                 your responsibility.
               </p>
@@ -112,16 +112,16 @@ export default function Home() {
                 {
                   icon: Vote,
                   title: "Ensemble voting",
-                  desc: "Seven fine-tuned models vote on every slide. The majority decides — more robust than any single model.",
+                  desc: "Seven fine tuned models vote on every slide. The majority decides, more robust than any single model.",
                 },
                 {
                   icon: Layers,
-                  title: "3-stage pipeline",
-                  desc: "Fecal screening gates helminth detection, which gates species identification. Each stage narrows uncertainty.",
+                  title: "3 stage pipeline",
+                  desc: "Fecal Classification gates Helminth Screening, which gates Helminth Species Identification. Each stage narrows uncertainty.",
                 },
                 {
                   icon: Box,
-                  title: "Bounding-box overlays",
+                  title: "Bounding box overlays",
                   desc: "Object detection draws boxes around each helminth species found, so you see exactly what the model sees.",
                 },
                 {
@@ -153,7 +153,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── Workflow ─── */}
+        {/* Workflow */}
         <section
           id="workflow"
           className="scroll-mt-24 py-24 sm:py-32 lg:py-36"
@@ -183,7 +183,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── Ensemble models ─── */}
+        {/* Ensemble models */}
         <section
           id="models"
           className="scroll-mt-24 border-y border-border bg-muted/20 py-24 sm:py-32 lg:py-36"
@@ -202,9 +202,9 @@ export default function Home() {
               </h2>
               <p className="mt-5 max-w-3xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                 Every uploaded slide is classified by seven independently
-                fine-tuned TensorFlow / Keras architectures. Their outputs are
+                fine tuned TensorFlow / Keras architectures. Their outputs are
                 combined through majority voting for a more reliable fecal vs
-                non-fecal decision.
+                non fecal decision.
               </p>
             </ScrollFadeIn>
             <ScrollFadeIn
@@ -251,7 +251,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── Detectable species ─── */}
+        {/* Detectable species */}
         <section
           id="species"
           className="scroll-mt-24 py-24 sm:py-32 lg:py-36"
@@ -269,7 +269,7 @@ export default function Home() {
                 11 helminth species, localized on every slide
               </h2>
               <p className="mt-5 max-w-3xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                When helminths are confirmed, the object-detection model
+                When helminth is confirmed, the object detection model
                 identifies and draws bounding boxes around these parasitic
                 species directly on the microscopy image.
               </p>
@@ -292,7 +292,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── CTA ─── */}
+        {/* CTA */}
         <section
           id="clinicians"
           className="scroll-mt-24 border-t border-border bg-muted/15 py-24 sm:py-32 lg:py-36"
@@ -326,7 +326,7 @@ export default function Home() {
                 >
                   sign in
                 </Link>
-                . This landing page is informational — no uploads or inference
+                . This landing page is informational: no uploads or inference
                 run here.
               </p>
             </ScrollFadeIn>

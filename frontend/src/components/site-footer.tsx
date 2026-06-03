@@ -19,7 +19,7 @@ export function SiteFooter() {
         <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground">
-              Fecal Classification
+              Helminth Detection
             </p>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
               Upload microscopy slides and review staged model outputs in a
@@ -48,7 +48,7 @@ export function SiteFooter() {
         <Separator className="my-10" />
         <div className="flex flex-col gap-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>
-            © {new Date().getFullYear()} Fecal Classification. All rights
+            © {new Date().getFullYear()} Helminth Detection. All rights
             reserved.
           </p>
           <p className="max-w-lg sm:text-right">

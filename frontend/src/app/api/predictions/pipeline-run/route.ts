@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { resolvePredictionUserId } from "@/lib/prediction-api-auth";
-import { serviceSubmitPipelineRun } from "@/lib/server/pipeline-run-service";
+import { isValidImageHashHex } from "@/lib/image-hash";
+import {
+  serviceSubmitPipelineRun,
+  type PipelineCachedOk,
+} from "@/lib/server/pipeline-run-service";
 
 export const runtime = "nodejs";
 
@@ -24,6 +28,12 @@ function submitErrorStatus(error: string, code?: string): number {
   return 500;
 }
 
+function isCachedResult(
+  result: Awaited<ReturnType<typeof serviceSubmitPipelineRun>>,
+): result is PipelineCachedOk {
+  return result.ok === true && "cached" in result && result.cached === true;
+}
+
 export async function POST(request: Request) {
   try {
     const { userId } = await resolvePredictionUserId(request);
@@ -40,7 +50,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await serviceSubmitPipelineRun(userId, image);
+    const rawHash = formData.get("imageHash");
+    const imageHash =
+      typeof rawHash === "string" && isValidImageHashHex(rawHash)
+        ? rawHash
+        : undefined;
+    const forceRerun = formData.get("forceRerun") === "true";
+    const skipStage1 = formData.get("skipStage1") === "true";
+    const skipStage2 = formData.get("skipStage2") === "true";
+    const rawStage3Model = formData.get("stage3ModelFilename");
+    const stage3ModelFilename =
+      typeof rawStage3Model === "string" && rawStage3Model.trim()
+        ? rawStage3Model.trim()
+        : undefined;
+    const idempotencyKey = request.headers.get("Idempotency-Key")?.trim() || undefined;
+
+    const result = await serviceSubmitPipelineRun(userId, image, {
+      imageHash,
+      forceRerun,
+      idempotencyKey,
+      skipStage1,
+      skipStage2,
+      stage3ModelFilename,
+    });
     if (!result.ok) {
       return NextResponse.json(
         { error: result.error },
@@ -48,9 +80,14 @@ export async function POST(request: Request) {
       );
     }
 
+    if (isCachedResult(result)) {
+      return NextResponse.json(result);
+    }
+
     return NextResponse.json({
       id: result.id,
       stage: result.stage,
+      idempotent: result.idempotent,
     });
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : "Server error";
