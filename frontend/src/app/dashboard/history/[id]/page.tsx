@@ -1,4 +1,4 @@
-import { ExplanationsTabs } from "@/components/dashboard/explanations-tabs";
+import { HistoryExplanationsSection } from "@/components/dashboard/history-explanations-section";
 import { RunDetailActions } from "@/components/dashboard/run-detail-actions";
 import { RunDetailImage } from "@/components/dashboard/run-detail-image";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -181,8 +181,12 @@ export default async function DashboardHistoryRunPage({
           ))}
         </div>
 
-        <ExplanationsTabs
+        <HistoryExplanationsSection
           runId={run.id}
+          runStatus={run.status}
+          imageObjectKey={run.image_object_key}
+          cacheHit={run.cache_hit}
+          predictionApiDelegateToken={predictionApiDelegateToken}
           stage1Status={run.stage1_status}
           stage2Status={run.stage2_status}
           stage3Status={run.stage3_status}
