@@ -1,4 +1,4 @@
-tensorflow==2.18.0
+tensorflow-cpu==2.18.0
 numpy
 h5py>=3.10.0
 pillow
@@ -10,6 +10,5 @@ python-multipart
 uvicorn[standard]
 requests
 huggingface-hub
-ultralytics
-opencv-python-headless
-
+lime
+matplotlib
