@@ -30,6 +30,12 @@ import {
 } from "@/lib/helminth-config";
 import { extractGradcamPayload, extractLimePayload } from "@/lib/explanation-ws";
 import {
+  resetExplanationUploadToasts,
+  summarizeUploadFailures,
+  uploadExplanationArtifact,
+  type ExplanationUploadFailure,
+} from "@/lib/explanation-upload";
+import {
   StageGradcamGrid,
   type GradcamModelEntry,
 } from "@/components/dashboard/stage-gradcam-grid";
@@ -375,6 +381,9 @@ export function HelminthPredictPanel({
   // Dedup keys for stream-per-model GradCAM uploads, scoped to the current run.
   const stage1GradcamUploadedRef = useRef<Set<string>>(new Set());
   const stage2GradcamUploadedRef = useRef<Set<string>>(new Set());
+  const stage1GradcamFailuresRef = useRef<ExplanationUploadFailure[]>([]);
+  const stage2GradcamFailuresRef = useRef<ExplanationUploadFailure[]>([]);
+  const gradcamStartedForJobRef = useRef<Set<string>>(new Set());
   const userSkipStage1Ref = useRef(false);
   const userSkipStage2Ref = useRef(false);
   const pipelineTerminalRef = useRef(false);
@@ -558,10 +567,6 @@ export function HelminthPredictPanel({
     }
   }, []);
 
-  /**
-   * Fire-and-forget POST of one PNG explanation to the run's R2 prefix.
-   * Failures only warn — they never block the live UI.
-   */
   const uploadExplanationPng = useCallback(
     async (params: {
       stage: 1 | 2 | 3;
@@ -572,36 +577,24 @@ export function HelminthPredictPanel({
     }) => {
       const runId = runIdRef.current;
       if (!runId) return;
-      try {
-        const blob = await (await fetch(params.dataUrl)).blob();
-        const fd = new FormData();
-        fd.set("stage", String(params.stage));
-        fd.set("modelFilename", params.modelFilename);
-        fd.set("file", blob, `${params.kind}.png`);
-        if (params.kind === "lime" && typeof params.numSamples === "number") {
-          fd.set("numSamples", String(params.numSamples));
-        }
-        const res = await fetch(
-          `/api/predictions/pipeline-run/${encodeURIComponent(runId)}/explanations/${params.kind}`,
-          {
-            method: "POST",
-            body: fd,
-            credentials: "include",
-            headers: delegateAuthHeaders,
-          },
-        );
-        if (!res.ok) {
-          const data = (await res
-            .json()
-            .catch(() => null)) as { error?: string } | null;
-          console.warn(
-            `[explanations] ${params.kind} upload failed`,
-            data?.error ?? res.statusText,
-          );
-        }
-      } catch (reason) {
-        console.warn(`[explanations] ${params.kind} upload error`, reason);
-      }
+
+      const failuresRef =
+        params.kind === "gradcam" && params.stage === 1
+          ? stage1GradcamFailuresRef
+          : params.kind === "gradcam" && params.stage === 2
+            ? stage2GradcamFailuresRef
+            : null;
+
+      await uploadExplanationArtifact({
+        runId,
+        ...params,
+        headers: delegateAuthHeaders,
+        onFailure: failuresRef
+          ? (failure) => {
+              failuresRef.current = [...failuresRef.current, failure];
+            }
+          : undefined,
+      });
     },
     [delegateAuthHeaders],
   );
@@ -610,6 +603,10 @@ export function HelminthPredictPanel({
     (jobId: string) => {
       teardownGradcamWs();
       stage1GradcamUploadedRef.current = new Set();
+      stage1GradcamFailuresRef.current = [];
+      if (runIdRef.current) {
+        resetExplanationUploadToasts(runIdRef.current);
+      }
       const sessionId = ++gradcamSessionRef.current;
       const initial: Record<string, GradcamModelEntry> = {};
       for (const m of STAGE1_MODEL_FILENAMES) {
@@ -701,7 +698,12 @@ export function HelminthPredictPanel({
             const phase: "loading" | "complete" = accounted ? "complete" : "loading";
 
             if (accounted) {
-              queueMicrotask(() => teardownGradcamWs());
+              queueMicrotask(() => {
+                teardownGradcamWs();
+                if (stage1GradcamFailuresRef.current.length > 0) {
+                  summarizeUploadFailures(stage1GradcamFailuresRef.current, "gradcam");
+                }
+              });
             }
 
             return {
@@ -743,6 +745,7 @@ export function HelminthPredictPanel({
     (jobId: string) => {
       teardownStage2GradcamWs();
       stage2GradcamUploadedRef.current = new Set();
+      stage2GradcamFailuresRef.current = [];
       const sessionId = ++stage2GradcamSessionRef.current;
       const initial: Record<string, GradcamModelEntry> = {};
       for (const m of STAGE2_MODEL_FILENAMES) {
@@ -832,7 +835,12 @@ export function HelminthPredictPanel({
             const phase: "loading" | "complete" = accounted ? "complete" : "loading";
 
             if (accounted) {
-              queueMicrotask(() => teardownStage2GradcamWs());
+              queueMicrotask(() => {
+                teardownStage2GradcamWs();
+                if (stage2GradcamFailuresRef.current.length > 0) {
+                  summarizeUploadFailures(stage2GradcamFailuresRef.current, "gradcam");
+                }
+              });
             }
 
             return {
@@ -870,12 +878,33 @@ export function HelminthPredictPanel({
     [teardownStage2GradcamWs, uploadExplanationPng],
   );
 
+  const startGradcamForJob = useCallback(
+    (stage: 1 | 2, externalJobId: string) => {
+      if (gradcamStartedForJobRef.current.has(externalJobId)) return;
+      gradcamStartedForJobRef.current.add(externalJobId);
+      if (stage === 1) {
+        setStage1JobId(externalJobId);
+        connectStage1Gradcam(externalJobId);
+      } else {
+        setStage2JobId(externalJobId);
+        connectStage2Gradcam(externalJobId);
+      }
+    },
+    [connectStage1Gradcam, connectStage2Gradcam],
+  );
+
   const handleStatusResultRef = useRef<
     ((runId: string, result: PipelineStatusPayload) => Promise<void>) | null
   >(null);
 
   const startFallbackSync = useCallback(
-    (runId: string) => {
+    (
+      runId: string,
+      gradcam?: { stage: 1 | 2; externalJobId: string },
+    ) => {
+      if (gradcam) {
+        startGradcamForJob(gradcam.stage, gradcam.externalJobId);
+      }
       if (fallbackRef.current) return;
       fallbackRef.current = setInterval(async () => {
         try {
@@ -895,7 +924,7 @@ export function HelminthPredictPanel({
         }
       }, 2000);
     },
-    [delegateAuthHeaders],
+    [delegateAuthHeaders, startGradcamForJob],
   );
 
   const finishPipeline = useCallback(
@@ -1085,7 +1114,12 @@ export function HelminthPredictPanel({
         ws = new WebSocket(wsUrlForStage(stage, externalJobId));
       } catch {
         setLiveMessage("WebSocket unavailable, syncing over HTTPS.");
-        startFallbackSync(runId);
+        startFallbackSync(
+          runId,
+          stage === 1 || stage === 2
+            ? { stage: stage as 1 | 2, externalJobId }
+            : undefined,
+        );
         return;
       }
       wsRef.current = ws;
@@ -1096,11 +1130,9 @@ export function HelminthPredictPanel({
         // Open Grad CAM in parallel with stage predictions. Connecting only after
         // `finished` is often too late (job/session closed server-side before heatmaps emit).
         if (stage === 1) {
-          setStage1JobId(externalJobId);
-          connectStage1Gradcam(externalJobId);
+          startGradcamForJob(1, externalJobId);
         } else if (stage === 2) {
-          setStage2JobId(externalJobId);
-          connectStage2Gradcam(externalJobId);
+          startGradcamForJob(2, externalJobId);
         } else if (stage === 3) {
           setStage3JobId(externalJobId);
         }
@@ -1142,7 +1174,12 @@ export function HelminthPredictPanel({
       ws.onerror = () => {
         setLiveMessage("WebSocket error, falling back to HTTPS sync.");
         teardownWs();
-        startFallbackSync(runId);
+        startFallbackSync(
+          runId,
+          stage === 1 || stage === 2
+            ? { stage: stage as 1 | 2, externalJobId }
+            : undefined,
+        );
       };
       ws.onclose = () => {
         clearTimers();
@@ -1154,9 +1191,8 @@ export function HelminthPredictPanel({
       clearTimers,
       delegateAuthHeaders,
       startFallbackSync,
+      startGradcamForJob,
       teardownWs,
-      connectStage1Gradcam,
-      connectStage2Gradcam,
     ],
   );
 
@@ -2266,12 +2302,10 @@ export function HelminthPredictPanel({
       }
       setExplanationsStarted(true);
       if (data.stage1?.externalJobId) {
-        setStage1JobId(data.stage1.externalJobId);
-        connectStage1Gradcam(data.stage1.externalJobId);
+        startGradcamForJob(1, data.stage1.externalJobId);
       }
       if (data.stage2?.externalJobId) {
-        setStage2JobId(data.stage2.externalJobId);
-        connectStage2Gradcam(data.stage2.externalJobId);
+        startGradcamForJob(2, data.stage2.externalJobId);
       }
     } catch (reason) {
       const message =
@@ -2281,10 +2315,9 @@ export function HelminthPredictPanel({
       setExplanationsStarting(false);
     }
   }, [
-    connectStage1Gradcam,
-    connectStage2Gradcam,
     delegateAuthHeaders,
     explanationsStarting,
+    startGradcamForJob,
   ]);
 
   const onSubmit = async (opts?: { force?: boolean }) => {
